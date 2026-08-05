@@ -44,6 +44,8 @@ Thumbs.db
 # ==========================
 
 .env
+frontend/.env
+frontend/.env.local
 
 # ==========================
 # Log Files
@@ -71,3 +73,13 @@ dist/
 # ==========================
 
 output/logs/
+
+
+
+# ==========================
+# React / Vite
+# ==========================
+
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/

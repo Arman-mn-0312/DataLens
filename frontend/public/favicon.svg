@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <!-- DataLens Official Flat Vector Icon -->
+  <g id="datalens-magnifying-glass">
+    <!-- Outer Magnifying Glass Lens Rim -->
+    <circle cx="215" cy="215" r="145" stroke="#1E3A8A" stroke-width="32" fill="none" />
+    
+    <!-- Magnifying Glass Handle -->
+    <path d="M 325 325 L 435 435" stroke="#1E3A8A" stroke-width="46" stroke-linecap="round" />
+  </g>
+
+  <!-- Ascending Analytics Bar Chart inside Lens -->
+  <g id="datalens-bar-chart">
+    <!-- Bar 1 (Short - Teal) -->
+    <rect x="115" y="270" width="30" height="50" rx="8" fill="#14B8A6" />
+    
+    <!-- Bar 2 (Medium - Sky Blue) -->
+    <rect x="160" y="225" width="30" height="95" rx="8" fill="#0EA5E9" />
+    
+    <!-- Bar 3 (Tall - Royal Blue) -->
+    <rect x="205" y="175" width="30" height="145" rx="8" fill="#2563EB" />
+    
+    <!-- Bar 4 (Tallest - Navy Blue) -->
+    <rect x="250" y="130" width="30" height="190" rx="8" fill="#1E3A8A" />
+  </g>
+
+  <!-- Integrated Data Quality Checkmark -->
+  <g id="datalens-checkmark">
+    <path d="M 135 210 L 170 245 L 230 175" stroke="#14B8A6" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  </g>
+</svg>
