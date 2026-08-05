@@ -1,13 +1,53 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { uploadDataset as uploadDatasetAPI } from "../services/uploadService";
 import { useDataLens } from '../context/DataLensContext';
 import { PageHeader } from '../components/common/PageHeader';
 import { CustomTable } from '../components/common/CustomTable';
 import { UploadCloud, FileText, Play, Trash2, Table, Database, Columns, Hash } from 'lucide-react';
 
+const parseCSVPreview = async (file) => {
+  try {
+    const text = await file.text();
+    const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
+    if (lines.length === 0) return null;
+
+    const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, ''));
+    const sampleLines = lines.slice(1, 11);
+    const rows = sampleLines.map(line => {
+      const values = line.split(',');
+      const rowObj = {};
+      headers.forEach((h, idx) => {
+        let val = values[idx] !== undefined ? values[idx].trim().replace(/^["']|["']$/g, '') : null;
+        if (val === "" || val === "null" || val === "NaN" || val === "N/A" || val === "undefined") {
+          val = null;
+        }
+        rowObj[h] = val;
+      });
+      return rowObj;
+    });
+
+    const columns = headers.map(h => ({ name: h }));
+    const totalRows = lines.length - 1;
+
+    return {
+      filename: file.name,
+      filesize: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
+      uploadedAt: new Date().toLocaleDateString(),
+      totalRows: totalRows,
+      columns: columns,
+      rows: rows
+    };
+  } catch (error) {
+    console.error("CSV parse error:", error);
+    return null;
+  }
+};
+
 export const Upload = () => {
-  const { dataset, isUploaded, uploadDataset, analyzeDataset } = useDataLens();
+  const { dataset, isUploaded, uploadDataset, analyzeDataset, resetDataset } = useDataLens();
   const [dragOver, setDragOver] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const navigate = useNavigate();
 
   const handleFileDrop = (e) => {
@@ -26,8 +66,33 @@ export const Upload = () => {
     }
   };
 
-  const processFile = (file) => {
-    uploadDataset(file);
+  const processFile = async (file) => {
+    if (!file) return;
+    setIsUploading(true);
+    try {
+      const response = await uploadDatasetAPI(file);
+
+      if (response && response.success) {
+        const previewData = await parseCSVPreview(file);
+        const datasetPayload = previewData || {
+          filename: file.name,
+          filesize: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
+          uploadedAt: new Date().toLocaleDateString(),
+          totalRows: 0,
+          columns: [],
+          rows: []
+        };
+
+        uploadDataset(file, datasetPayload);
+      } else {
+        alert(response?.message || "Failed to upload dataset.");
+      }
+    } catch (error) {
+      console.error("Upload error:", error);
+      alert("Failed to upload dataset to backend server.");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleStartAnalysis = async () => {
@@ -101,9 +166,9 @@ export const Upload = () => {
             Supports standard CSV files containing numerical, categorical, and temporal attributes.
           </p>
 
-          <label className="btn btn-primary" style={{ cursor: 'pointer', display: 'inline-flex' }}>
-            Browse File
-            <input type="file" accept=".csv" onChange={handleFileSelect} style={{ display: 'none' }} />
+          <label className="btn btn-primary" style={{ cursor: 'pointer', display: 'inline-flex', opacity: isUploading ? 0.7 : 1 }}>
+            {isUploading ? "Uploading file..." : "Browse File"}
+            <input type="file" accept=".csv" onChange={handleFileSelect} disabled={isUploading} style={{ display: 'none' }} />
           </label>
         </div>
       ) : (
@@ -136,7 +201,7 @@ export const Upload = () => {
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <button 
-                  onClick={() => uploadDataset(null)} 
+                  onClick={resetDataset} 
                   className="btn btn-secondary"
                   style={{ color: 'var(--danger)', borderColor: 'var(--danger-border)' }}
                 >
@@ -172,14 +237,14 @@ export const Upload = () => {
               <div style={{ padding: '0.85rem 1rem', backgroundColor: 'var(--bg-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                 <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Number of Rows</div>
                 <div style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '0.95rem', marginTop: '0.2rem' }}>
-                  15,420 rows
+                  {dataset?.totalRows !== undefined ? `${dataset.totalRows.toLocaleString()} rows` : "15,420 rows"}
                 </div>
               </div>
 
               <div style={{ padding: '0.85rem 1rem', backgroundColor: 'var(--bg-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                 <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Number of Columns</div>
                 <div style={{ fontWeight: 700, color: 'var(--brand)', fontSize: '0.95rem', marginTop: '0.2rem' }}>
-                  {dataset?.columns?.length || 8} columns
+                  {dataset?.columns?.length || 0} columns
                 </div>
               </div>
             </div>

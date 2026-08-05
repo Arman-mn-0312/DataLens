@@ -1,28 +1,29 @@
 import React, { createContext, useContext, useState } from 'react';
-import { SAMPLE_PREVIEW_DATA, MOCK_REPORTS, fetchReportData } from '../services/mockData';
+import { SAMPLE_PREVIEW_DATA } from '../services/mockData';
+import { fetchReportFromAPI } from '../services/api';
 
 const DataLensContext = createContext(null);
 
 export const DataLensProvider = ({ children }) => {
   const [theme, setTheme] = useState('light');
-  const [isUploaded, setIsUploaded] = useState(true); // Default loaded with sample for demo
-  const [isAnalyzed, setIsAnalyzed] = useState(true); // Default analyzed for instant exploration
-  const [dataset, setDataset] = useState(SAMPLE_PREVIEW_DATA);
+  const [isUploaded, setIsUploaded] = useState(false);
+  const [isAnalyzed, setIsAnalyzed] = useState(false);
+  const [dataset, setDataset] = useState(null);
 
   // Status tracker for each report
   const [reportStatus, setReportStatus] = useState({
-    overview: 'ready',
-    missing: 'ready',
+    overview: 'pending',
+    missing: 'pending',
     duplicate: 'pending',
     datatype: 'pending',
     outlier: 'pending',
-    dashboard: 'ready'
+    dashboard: 'pending'
   });
 
   const [reportData, setReportData] = useState({
-    overview: MOCK_REPORTS.overview,
-    dashboard: MOCK_REPORTS.dashboard,
-    missing: MOCK_REPORTS.missing,
+    overview: null,
+    dashboard: null,
+    missing: null,
     duplicate: null,
     datatype: null,
     outlier: null
@@ -34,14 +35,18 @@ export const DataLensProvider = ({ children }) => {
     document.documentElement.setAttribute('data-theme', nextTheme);
   };
 
-  const uploadDataset = (file) => {
-    // Simulated upload file processing
-    const newDataset = {
-      ...SAMPLE_PREVIEW_DATA,
-      filename: file?.name || "uploaded_dataset.csv",
-      filesize: file?.size ? `${(file.size / (1024 * 1024)).toFixed(2)} MB` : "3.4 MB",
-      uploadedAt: new Date().toLocaleDateString()
-    };
+  const uploadDataset = (file, datasetData = null) => {
+    let newDataset = datasetData;
+    if (!newDataset && file) {
+      newDataset = {
+        ...SAMPLE_PREVIEW_DATA,
+        filename: file?.name || "uploaded_dataset.csv",
+        filesize: file?.size ? `${(file.size / (1024 * 1024)).toFixed(2)} MB` : "3.4 MB",
+        uploadedAt: new Date().toLocaleDateString()
+      };
+    } else if (!newDataset && !file) {
+      newDataset = SAMPLE_PREVIEW_DATA;
+    }
 
     setDataset(newDataset);
     setIsUploaded(true);
@@ -69,13 +74,13 @@ export const DataLensProvider = ({ children }) => {
 
   const analyzeDataset = async () => {
     setIsAnalyzed(true);
-    setReportStatus(prev => ({ ...prev, overview: 'loading', dashboard: 'loading' }));
+    setReportStatus(prev => ({ ...prev, overview: 'loading' }));
 
-    const overviewRes = await fetchReportData('overview');
-    const dashboardRes = await fetchReportData('dashboard');
+    const filename = dataset?.filename;
+    const overviewRes = await fetchReportFromAPI('overview', filename);
 
-    setReportData(prev => ({ ...prev, overview: overviewRes, dashboard: dashboardRes }));
-    setReportStatus(prev => ({ ...prev, overview: 'ready', dashboard: 'ready' }));
+    setReportData(prev => ({ ...prev, overview: overviewRes }));
+    setReportStatus(prev => ({ ...prev, overview: overviewRes ? 'ready' : 'error' }));
   };
 
   const loadReport = async (reportKey) => {
@@ -84,9 +89,10 @@ export const DataLensProvider = ({ children }) => {
     }
 
     setReportStatus(prev => ({ ...prev, [reportKey]: 'loading' }));
-    const data = await fetchReportData(reportKey);
+    const filename = dataset?.filename;
+    const data = await fetchReportFromAPI(reportKey, filename);
     setReportData(prev => ({ ...prev, [reportKey]: data }));
-    setReportStatus(prev => ({ ...prev, [reportKey]: 'ready' }));
+    setReportStatus(prev => ({ ...prev, [reportKey]: data ? 'ready' : 'error' }));
   };
 
   const resetDataset = () => {

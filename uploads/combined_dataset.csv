@@ -1,0 +1,13 @@
+﻿Employee_ID,Name,Age,Department,Salary,Experience,Joining_Date,City
+EMP001,Rahul Sharma,28,IT,85000,5,12-04-2023,Mumbai
+EMP001,Rahul Sharma,28,IT,85000,5,12-04-2023,Mumbai
+EMP002,   Jane Doe ,32,it,95000,8,05/18/2022,Bangalore
+EMP003,Amit Patel,-5,IT,110000,12,20-11-2021,Bengaluru
+EMP004,Priya Rai,20,Marketing,55000,25,01-09-2025,BLR
+EMP005,Vikram Singh,45,HR,,15,Jan-24,Delhi
+EMP006,A1ex F1etcher,38,Information Technology,1250000,14,15-07-2020,New Delhi
+EMP007,Sneha Reddy,29,Sales,1000000,6,31-02-2025,Hyderabad
+EMP002,Michael Scott,43,Management,60000,20,01-04-2024,Scranton
+EMP008,Rohan Das,32 Years,I.T.,-45000,7,10-10-2027,Bangalore
+EMP009,,31,Finance,72000,4,14-01-2025,Pune
+EMP010,Kabir Kapoor,35,,98000,9,22-08-2023,Chennai
