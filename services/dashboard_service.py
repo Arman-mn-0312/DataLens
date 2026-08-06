@@ -22,12 +22,14 @@ HEALTH_STATUS = {
 
 def get_highest_severity(report):
     """
-    Return the highest severity from a report.(Stop the dupicate usr of this code so we make it in to fucntion to reuse it)
+    Return the highest severity from a report. Safely handles empty reports.
     """
+    if report is None or getattr(report, "empty", True) or "Severity" not in report.columns or len(report["Severity"]) == 0:
+        return "No Issue"
 
     return max(
         report["Severity"],
-        key=lambda severity: SEVERITY_PRIORITY[severity]
+        key=lambda severity: SEVERITY_PRIORITY.get(severity, 0)
     )
 
 
@@ -50,7 +52,7 @@ def calculate_health_score(missing_report,duplicate_report,datatype_report,outli
 
         highest_severity = get_highest_severity(report)
  
-        deduction = SEVERITY_SCORE[highest_severity]
+        deduction = SEVERITY_SCORE.get(highest_severity, 0)
 
         score_breakdown[report_name] = deduction
 
@@ -103,7 +105,7 @@ def get_highest_priority_issue(missing_report,duplicate_report,datatype_report,o
 
     highest_priority = max(
         report_severity.values(),
-        key=lambda severity: SEVERITY_PRIORITY[severity]
+        key=lambda severity: SEVERITY_PRIORITY.get(severity, 0)
     )
 
     priority_reports = []

@@ -29,11 +29,24 @@ export const Duplicates = () => {
   const report = reportData.duplicate;
   const statusState = reportStatus.duplicate === 'ready' ? 'Generated' : reportStatus.duplicate === 'loading' ? 'Loading' : 'Not Generated';
 
+  const sampleRecords = report.duplicate_samples || [];
+  
+  // Extract column keys from the actual sample records dynamically
+  const sampleKeys = sampleRecords.length > 0 
+    ? Object.keys(sampleRecords[0]).filter(key => key !== 'duplicate_count')
+    : [];
+
   const tableColumns = [
-    { header: 'Natural Key (Customer ID)', accessor: 'customer_id', render: (val) => <code>{val}</code> },
-    { header: 'Full Name', accessor: 'full_name' },
-    { header: 'Email Address', accessor: 'email_address' },
-    { header: 'Duplicate Frequency', accessor: 'duplicate_count', render: (val) => <span style={{ fontWeight: 700, color: 'var(--danger)' }}>{val}x Duplicate</span> }
+    ...sampleKeys.map(key => ({
+      header: key,
+      accessor: key,
+      render: (val) => (val === null || val === undefined ? <span style={{ color: 'var(--text-dim)', fontStyle: 'italic' }}>null</span> : String(val))
+    })),
+    {
+      header: 'Duplicate Frequency',
+      accessor: 'duplicate_count',
+      render: (val) => <span style={{ fontWeight: 700, color: 'var(--danger)' }}>{val || 2}x Duplicate</span>
+    }
   ];
 
   return (

@@ -1,14 +1,12 @@
 import os
+from typing import Any, Optional, Tuple
 import pandas as pd
-# pyrefly: ignore [missing-import]
 import numpy as np
-# pyrefly: ignore [missing-import]
 from flask import Blueprint, jsonify, request
-# pyrefly: ignore [missing-import]
-from werkzeug.utils import secure_filename
 
-from config.upload_config import UPLOAD_FOLDER
 from services.upload_service import save_uploaded_file
+from services.dataset_manager import DatasetManager
+from services.report_cache_service import ReportCacheService
 from services.dashboard_service import (
     get_highest_severity,
     calculate_health_score,
@@ -28,22 +26,32 @@ from reports.dashboard import generate_dashboard_report
 api = Blueprint("api", __name__)
 
 
-def get_dataset_df(filename):
-    if not filename:
-        return None, "Filename parameter is required."
-    
-    filepath = os.path.join(UPLOAD_FOLDER, secure_filename(filename))
-    if not os.path.exists(filepath):
-        return None, f"File '{filename}' not found."
-    
-    try:
-        df = pd.read_csv(filepath)
-        return df, None
-    except Exception as e:
-        return None, f"Failed to parse CSV file: {str(e)}"
+def to_int(val: Any) -> int:
+    """Safely convert Pandas/Numpy scalar or integer representation to Python int."""
+    if val is None:
+        return 0
+    if hasattr(val, "item"):
+        return int(val.item())
+    return int(val)
 
 
-def sanitize_val(val):
+def to_float(val: Any) -> float:
+    """Safely convert Pandas/Numpy scalar or float representation to Python float."""
+    if val is None:
+        return 0.0
+    if hasattr(val, "item"):
+        return float(val.item())
+    return float(val)
+
+
+def get_dataset_df(filename: Optional[str]) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
+    """
+    Retrieve active DataFrame via DatasetManager to prevent repeated CSV disk reads.
+    """
+    return DatasetManager.get_dataframe(filename)
+
+
+def sanitize_val(val: Any) -> Any:
     if pd.isna(val):
         return None
     if isinstance(val, (np.integer, int)):
@@ -55,7 +63,6 @@ def sanitize_val(val):
 
 @api.route("/")
 def home():
-
     return jsonify({
         "project": "DataLens",
         "version": "1.0",
@@ -67,12 +74,10 @@ def home():
 
 @api.route("/health")
 def health():
-
     return jsonify({
         "status": "Healthy",
         "message": "Backend is working correctly."
     })
-
 
 
 # ==========================
@@ -81,7 +86,6 @@ def health():
 
 @api.route("/upload", methods=["POST"])
 def upload_dataset():
-
     if "file" not in request.files:
         return jsonify({
             "success": False,
@@ -89,6 +93,11 @@ def upload_dataset():
         }), 400
 
     file = request.files["file"]
+    if not file or file.filename == "":
+        return jsonify({
+            "success": False,
+            "message": "No file selected."
+        }), 400
 
     filepath = save_uploaded_file(file)
 
@@ -98,10 +107,27 @@ def upload_dataset():
             "message": "Only CSV files are allowed."
         }), 400
 
+    clean_filename = os.path.basename(filepath)
+
+    # Clear old caches and load dataset into memory once upon upload
+    DatasetManager.clear_cache()
+    ReportCacheService.clear_cache()
+    _, err = DatasetManager.load_dataset(clean_filename)
+
+    if err:
+        return jsonify({
+            "success": False,
+            "message": err
+        }), 400
+
+    file_size_mb = f"{os.path.getsize(filepath) / (1024 * 1024):.2f} MB"
+    dataset_payload = DatasetManager.get_preview_payload(filesize_str=file_size_mb)
+
     return jsonify({
         "success": True,
         "message": "Dataset uploaded successfully.",
-        "filename": file.filename
+        "filename": clean_filename,
+        "dataset": dataset_payload
     }), 200
 
 
@@ -112,9 +138,15 @@ def upload_dataset():
 @api.route("/reports/overview", methods=["GET"])
 def get_overview_report():
     filename = request.args.get("filename")
+    
+    # Return cached report if available
+    cached = ReportCacheService.get_report("overview", filename)
+    if cached is not None:
+        return jsonify(cached), 200
+
     df, err = get_dataset_df(filename)
-    if err:
-        return jsonify({"success": False, "message": err}), 400
+    if err or df is None:
+        return jsonify({"success": False, "message": err or "Failed to load dataset."}), 400
 
     overview_df = generate_overview_report(df)
     missing_df = generate_missing_report(df)
@@ -130,32 +162,39 @@ def get_overview_report():
 
     response_payload = {
         "dataset_name": filename,
-        "total_rows": int(metrics.get("Rows", len(df))),
-        "total_columns": int(metrics.get("Columns", len(df.columns))),
-        "memory_usage_mb": float(metrics.get("Memory Usage (MB)", 0)),
-        "numeric_columns": int(metrics.get("Numeric Columns", 0)),
-        "categorical_columns": int(metrics.get("Categorical Columns", 0)),
-        "total_missing_values": int(metrics.get("Missing Values", 0)),
-        "total_duplicate_records": int(metrics.get("Duplicate Rows", 0)),
+        "total_rows": to_int(metrics.get("Rows", len(df))),
+        "total_columns": to_int(metrics.get("Columns", len(df.columns))),
+        "memory_usage_mb": to_float(metrics.get("Memory Usage (MB)", 0)),
+        "numeric_columns": to_int(metrics.get("Numeric Columns", 0)),
+        "categorical_columns": to_int(metrics.get("Categorical Columns", 0)),
+        "total_missing_values": to_int(metrics.get("Missing Values", 0)),
+        "total_duplicate_records": to_int(metrics.get("Duplicate Rows", 0)),
         "health_score": health_score,
         "health_rating": health_rating,
         "analyzed_at": "Just now"
     }
 
+    ReportCacheService.set_report("overview", response_payload, filename)
     return jsonify(response_payload), 200
 
 
 @api.route("/reports/missing", methods=["GET"])
 def get_missing_report_api():
     filename = request.args.get("filename")
+
+    # Return cached report if available
+    cached = ReportCacheService.get_report("missing", filename)
+    if cached is not None:
+        return jsonify(cached), 200
+
     df, err = get_dataset_df(filename)
-    if err:
-        return jsonify({"success": False, "message": err}), 400
+    if err or df is None:
+        return jsonify({"success": False, "message": err or "Failed to load dataset."}), 400
 
     missing_df = generate_missing_report(df)
 
-    total_missing = int(missing_df["Missing Count"].sum()) if not missing_df.empty else 0
-    pct_missing_rows = round((df.isnull().any(axis=1).sum() / len(df)) * 100, 2) if len(df) > 0 else 0.0
+    total_missing = to_int(missing_df["Missing Count"].sum()) if not missing_df.empty else 0
+    pct_missing_rows = round(to_float(df.isnull().any(axis=1).sum() / len(df)) * 100, 2) if len(df) > 0 else 0.0
 
     overall_severity = get_highest_severity(missing_df) if not missing_df.empty else "No Issue"
     business_impact = generate_business_impact("missing", overall_severity)
@@ -166,8 +205,8 @@ def get_missing_report_api():
         col_name = str(row["Column"])
         columns.append({
             "column_name": col_name,
-            "missing_count": int(row["Missing Count"]),
-            "missing_pct": float(row["Missing Percentage"]),
+            "missing_count": to_int(row["Missing Count"]),
+            "missing_pct": to_float(row["Missing Percentage"]),
             "datatype": str(df[col_name].dtype) if col_name in df.columns else "unknown",
             "severity": str(row["Severity"])
         })
@@ -181,20 +220,27 @@ def get_missing_report_api():
         "columns": columns
     }
 
+    ReportCacheService.set_report("missing", response_payload, filename)
     return jsonify(response_payload), 200
 
 
 @api.route("/reports/duplicate", methods=["GET"])
 def get_duplicate_report_api():
     filename = request.args.get("filename")
+
+    # Return cached report if available
+    cached = ReportCacheService.get_report("duplicate", filename)
+    if cached is not None:
+        return jsonify(cached), 200
+
     df, err = get_dataset_df(filename)
-    if err:
-        return jsonify({"success": False, "message": err}), 400
+    if err or df is None:
+        return jsonify({"success": False, "message": err or "Failed to load dataset."}), 400
 
     summary_df, duplicate_records = generate_duplicate_report(df)
 
-    total_duplicates = int(summary_df["Duplicate Records"].iloc[0]) if not summary_df.empty else 0
-    pct_duplicates = float(summary_df["Duplicate Percentage"].iloc[0]) if not summary_df.empty else 0.0
+    total_duplicates = to_int(summary_df["Duplicate Records"].iloc[0]) if not summary_df.empty else 0
+    pct_duplicates = to_float(summary_df["Duplicate Percentage"].iloc[0]) if not summary_df.empty else 0.0
     overall_severity = str(summary_df["Severity"].iloc[0]) if not summary_df.empty else "No Issue"
     business_impact = str(summary_df["Business Impact"].iloc[0]) if not summary_df.empty else "No duplicate issue."
     recommendation = str(summary_df["Recommendation"].iloc[0]) if not summary_df.empty else "No action required."
@@ -216,26 +262,33 @@ def get_duplicate_report_api():
         "duplicate_samples": samples
     }
 
+    ReportCacheService.set_report("duplicate", response_payload, filename)
     return jsonify(response_payload), 200
 
 
 @api.route("/reports/datatype", methods=["GET"])
 def get_datatype_report_api():
     filename = request.args.get("filename")
+
+    # Return cached report if available
+    cached = ReportCacheService.get_report("datatype", filename)
+    if cached is not None:
+        return jsonify(cached), 200
+
     df, err = get_dataset_df(filename)
-    if err:
-        return jsonify({"success": False, "message": err}), 400
+    if err or df is None:
+        return jsonify({"success": False, "message": err or "Failed to load dataset."}), 400
 
     datatype_df = generate_datatype_report(df)
 
-    total_invalid = int(datatype_df["Invalid Values"].sum()) if not datatype_df.empty else 0
+    total_invalid = to_int(datatype_df["Invalid Values"].sum()) if not datatype_df.empty else 0
     overall_severity = get_highest_severity(datatype_df) if not datatype_df.empty else "No Issue"
     business_impact = generate_business_impact("datatype", overall_severity)
     recommendation = generate_recommendation("datatype", overall_severity)
 
     issues = []
     for _, row in datatype_df.iterrows():
-        invalid_cnt = int(row["Invalid Values"])
+        invalid_cnt = to_int(row["Invalid Values"])
         issues.append({
             "column_name": str(row["Column"]),
             "expected_type": str(row["Expected Datatype"]),
@@ -254,19 +307,26 @@ def get_datatype_report_api():
         "issues": issues
     }
 
+    ReportCacheService.set_report("datatype", response_payload, filename)
     return jsonify(response_payload), 200
 
 
 @api.route("/reports/outlier", methods=["GET"])
 def get_outlier_report_api():
     filename = request.args.get("filename")
+
+    # Return cached report if available
+    cached = ReportCacheService.get_report("outlier", filename)
+    if cached is not None:
+        return jsonify(cached), 200
+
     df, err = get_dataset_df(filename)
-    if err:
-        return jsonify({"success": False, "message": err}), 400
+    if err or df is None:
+        return jsonify({"success": False, "message": err or "Failed to load dataset."}), 400
 
     outlier_df = generate_outlier_report(df)
 
-    total_outliers = int(outlier_df["Outlier Count"].sum()) if not outlier_df.empty else 0
+    total_outliers = to_int(outlier_df["Outlier Count"].sum()) if not outlier_df.empty else 0
     overall_severity = get_highest_severity(outlier_df) if not outlier_df.empty else "No Issue"
     business_impact = generate_business_impact("outlier", overall_severity)
     recommendation = generate_recommendation("outlier", overall_severity)
@@ -279,10 +339,10 @@ def get_outlier_report_api():
         series = df[col_name].dropna() if col_name in df.columns else pd.Series(dtype=float)
         summary.append({
             "column_name": col_name,
-            "outlier_count": int(row["Outlier Count"]),
-            "percentage": float(row["Outlier Percentage"]),
-            "lower_bound": float(row["Lower Bound"]),
-            "upper_bound": float(row["Upper Bound"]),
+            "outlier_count": to_int(row["Outlier Count"]),
+            "percentage": to_float(row["Outlier Percentage"]),
+            "lower_bound": to_float(row["Lower Bound"]),
+            "upper_bound": to_float(row["Upper Bound"]),
             "min_val": sanitize_val(series.min()) if not series.empty else 0,
             "max_val": sanitize_val(series.max()) if not series.empty else 0,
             "severity": str(row["Severity"])
@@ -297,15 +357,22 @@ def get_outlier_report_api():
         "summary": summary
     }
 
+    ReportCacheService.set_report("outlier", response_payload, filename)
     return jsonify(response_payload), 200
 
 
 @api.route("/reports/dashboard", methods=["GET"])
 def get_dashboard_report_api():
     filename = request.args.get("filename")
+
+    # Return cached report if available
+    cached = ReportCacheService.get_report("dashboard", filename)
+    if cached is not None:
+        return jsonify(cached), 200
+
     df, err = get_dataset_df(filename)
-    if err:
-        return jsonify({"success": False, "message": err}), 400
+    if err or df is None:
+        return jsonify({"success": False, "message": err or "Failed to load dataset."}), 400
 
     missing_df = generate_missing_report(df)
     dup_df, _ = generate_duplicate_report(df)
@@ -318,22 +385,22 @@ def get_dashboard_report_api():
 
     metrics = dict(zip(dash_summary_df["Metric"], dash_summary_df["Value"]))
 
-    health_score = int(metrics.get("Health Score", 100))
+    health_score = to_int(metrics.get("Health Score", 100))
     status = str(metrics.get("Dataset Status", "Unknown"))
     highest_priority = str(metrics.get("Highest Priority Issue", "None"))
 
-    total_missing = int(missing_df["Missing Count"].sum()) if not missing_df.empty else 0
-    total_dups = int(dup_df["Duplicate Records"].iloc[0]) if not dup_df.empty else 0
-    total_invalid = int(dtype_df["Invalid Values"].sum()) if not dtype_df.empty else 0
-    total_outliers = int(outlier_df["Outlier Count"].sum()) if not outlier_df.empty else 0
+    total_missing = to_int(missing_df["Missing Count"].sum()) if not missing_df.empty else 0
+    total_dups = to_int(dup_df["Duplicate Records"].iloc[0]) if not dup_df.empty else 0
+    total_invalid = to_int(dtype_df["Invalid Values"].sum()) if not dtype_df.empty else 0
+    total_outliers = to_int(outlier_df["Outlier Count"].sum()) if not outlier_df.empty else 0
     total_issues = total_missing + total_dups + total_invalid + total_outliers
 
     critical_issues = 0
     high_issues = 0
     for rep in [missing_df, dtype_df, outlier_df]:
         if not rep.empty and "Severity" in rep.columns:
-            critical_issues += int((rep["Severity"] == "Critical").sum())
-            high_issues += int((rep["Severity"] == "High").sum())
+            critical_issues += to_int((rep["Severity"] == "Critical").sum())
+            high_issues += to_int((rep["Severity"] == "High").sum())
 
     quick_insights = [
         f"Dataset health score is {health_score}/100 ({status}). Highest priority issue: {highest_priority}.",
@@ -355,4 +422,5 @@ def get_dashboard_report_api():
         "quick_insights": quick_insights
     }
 
+    ReportCacheService.set_report("dashboard", response_payload, filename)
     return jsonify(response_payload), 200

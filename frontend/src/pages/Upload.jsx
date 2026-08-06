@@ -6,44 +6,6 @@ import { PageHeader } from '../components/common/PageHeader';
 import { CustomTable } from '../components/common/CustomTable';
 import { UploadCloud, FileText, Play, Trash2, Table, Database, Columns, Hash } from 'lucide-react';
 
-const parseCSVPreview = async (file) => {
-  try {
-    const text = await file.text();
-    const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
-    if (lines.length === 0) return null;
-
-    const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, ''));
-    const sampleLines = lines.slice(1, 11);
-    const rows = sampleLines.map(line => {
-      const values = line.split(',');
-      const rowObj = {};
-      headers.forEach((h, idx) => {
-        let val = values[idx] !== undefined ? values[idx].trim().replace(/^["']|["']$/g, '') : null;
-        if (val === "" || val === "null" || val === "NaN" || val === "N/A" || val === "undefined") {
-          val = null;
-        }
-        rowObj[h] = val;
-      });
-      return rowObj;
-    });
-
-    const columns = headers.map(h => ({ name: h }));
-    const totalRows = lines.length - 1;
-
-    return {
-      filename: file.name,
-      filesize: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
-      uploadedAt: new Date().toLocaleDateString(),
-      totalRows: totalRows,
-      columns: columns,
-      rows: rows
-    };
-  } catch (error) {
-    console.error("CSV parse error:", error);
-    return null;
-  }
-};
-
 export const Upload = () => {
   const { dataset, isUploaded, uploadDataset, analyzeDataset, resetDataset } = useDataLens();
   const [dragOver, setDragOver] = useState(false);
@@ -73,17 +35,7 @@ export const Upload = () => {
       const response = await uploadDatasetAPI(file);
 
       if (response && response.success) {
-        const previewData = await parseCSVPreview(file);
-        const datasetPayload = previewData || {
-          filename: file.name,
-          filesize: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
-          uploadedAt: new Date().toLocaleDateString(),
-          totalRows: 0,
-          columns: [],
-          rows: []
-        };
-
-        uploadDataset(file, datasetPayload);
+        uploadDataset(file, response.dataset);
       } else {
         alert(response?.message || "Failed to upload dataset.");
       }

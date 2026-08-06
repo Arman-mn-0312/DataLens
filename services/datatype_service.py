@@ -156,7 +156,7 @@ def detect_column_type(column):
                 break
 
     # Return the most common datatype
-    return max(type_counts, key=type_counts.get)
+    return max(type_counts, key=lambda t: type_counts.get(t, 0))
 
 
 
