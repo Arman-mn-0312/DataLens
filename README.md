@@ -255,7 +255,7 @@ Future capabilities planned for upcoming releases:
 *MCA Student | Data Science & Software Engineering Enthusiast*
 
 - **GitHub**: [Arman-mn-0312](https://github.com/Arman-mn-0312)
-- **LinkedIn**: [Arman Mansuri](https://linkedin.com/in/your-linkedin-profile) *(Update link as appropriate)*
+- **LinkedIn**: [Arman Mansuri](https://www.linkedin.com/in/arman-mansuri-6867a5380 ) *(Update link as appropriate)*
 - **Email**: `your-email@example.com` *(Update email as appropriate)*
 
 ---
