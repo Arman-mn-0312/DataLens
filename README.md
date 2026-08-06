@@ -6,203 +6,208 @@
 [![Vite](https://img.shields.io/badge/Vite-6.0-646cff.svg?logo=vite&logoColor=white)](https://vitejs.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> An intelligent, full-stack data quality investigation platform that detects data anomalies, calculates composite dataset health scores, evaluates operational & financial risks, and delivers actionable business recommendations.
+> An intelligent data quality investigation platform that detects data anomalies, evaluates operational risks, calculates composite dataset health scores, and delivers actionable business recommendations.
 
 ---
 
-## 📖 Project Overview
+## 🎯 Problem Statement
 
-Data quality issues are often silent productivity killers in data engineering and analytics pipelines. Most traditional data quality tools only present raw technical statistics, such as:
+In data engineering and analytics pipelines, poor data quality leads to unreliable business intelligence, skewed reporting, and failed machine learning models. 
 
-- *"Salary column has 8.3% missing values."*
-- *"Dataset contains 12 duplicate rows."*
+Traditional statistical tools only report raw anomaly metrics:
+- *"Column Salary has 8% null values."*
+- *"Dataset contains 12 duplicate records."*
 
-While these numbers describe the data state, they fail to answer the critical questions engineering and business teams face:
+These raw numbers leave non-technical stakeholders asking:
+- **How critical are these data issues?**
+- **What financial or operational risks could they cause?**
+- **How should data teams prioritize and fix these errors?**
 
-- **What is the operational impact of these issues?**
-- **Which anomalies require immediate triage versus routine cleanup?**
-- **What specific business risks could occur if this data enters production pipelines?**
-- **How can these issues be resolved effectively?**
-
-**DataLens** addresses this gap by acting as an automated **Data Quality Investigator**. Rather than simply reporting statistics, it evaluates dataset health holistically using a weighted scoring model, categorizes severity levels, estimates operational risks, and provides clear remediation guidance.
-
----
-
-## ⚡ Key Features
-
-- **🚀 One-Command Launcher (`python run.py`)**  
-  Automates environment validation, virtual environment detection, dependency checks, and service startup for both Flask backend and React frontend with a single command.
-
-- **📁 Dataset Upload & Live Inspection**  
-  Supports CSV dataset uploads with automated schema detection, dataset size verification, and a live preview card before executing analysis.
-
-- **📊 Comprehensive Dataset Overview**  
-  Generates key metrics including dataset dimensions, numeric/categorical split, memory usage, missing counts, and overall data health rating.
-
-- **⚠️ Missing Value Analysis**  
-  Identifies missing values across all attributes, measures null percentages, calculates column-level severity, and outlines operational business impacts.
-
-- **🔄 Duplicate Record Detection**  
-  Detects duplicate entity rows, calculates dataset inflation rates, and presents dynamic sample duplicate pairs for inspection.
-
-- **📐 Datatype Conformance Validation**  
-  Compares detected datatypes against expected schema definitions to flag type mismatches, parsing warnings, and inconsistent data formats.
-
-- **📈 Outlier & Anomaly Detection**  
-  Uses Interquartile Range (IQR) statistical techniques to identify continuous numerical outliers, lower/upper bounds, and extreme values.
-
-- **🎯 Severity Assessment & Recommendation Engine**  
-  Categorizes issues into standardized severity levels (*Critical, High, Medium, Low, No Issue*) and provides specific remediation steps.
-
-- **📊 Executive Master Dashboard**  
-  Displays a Composite Health Score (0–100), dataset status (*Excellent, Good, Average, Poor, Critical*), priority triage queue, and quick insights summary.
+**DataLens bridges this gap.** Instead of just printing technical stats, DataLens investigates data anomalies, measures their business severity, calculates a composite health score, and provides step-by-step remediation guidance.
 
 ---
 
-## 🔄 Project Workflow
+## 💡 Product Overview
+
+DataLens is a full-stack data quality investigation solution designed for data analysts, analytics engineers, and decision-makers. It turns unorganized raw CSV data into clear, executive-ready quality reports with interactive visualizations and automated risk assessments.
 
 ```mermaid
-flowchart TD
-    A[Upload CSV Dataset] --> B[Flask API Endpoint]
-    B --> C[DatasetManager In-Memory Load]
-    C --> D[Analysis Engine Core]
-    D --> E1[Overview Report Module]
-    D --> E2[Missing Value Module]
-    D --> E3[Duplicate Detection Module]
-    D --> E4[Datatype Validation Module]
-    D --> E5[Outlier Detection Module]
-    E1 & E2 & E3 & E4 & E5 --> F[Dashboard Triage & Health Score Engine]
-    F --> G[Report Cache Service]
-    G --> H[Interactive React Frontend UI]
+flowchart LR
+    A[Raw CSV Upload] --> B[React Web UI]
+    B --> C[Flask Analysis Backend]
+    C --> D[Data Quality Engine]
+    D --> E[Interactive Quality Reports & Executive Dashboard]
 ```
 
 ---
 
-## 🏗 Project Architecture
+## ✨ Key Features
+
+- **🚀 One-Command Launcher (`python run.py`)**  
+  Starts the entire application (Flask backend, React frontend, health readiness checks, and web browser) automatically with a single command.
+
+- **📁 Dataset Upload & Live Inspection**  
+  Drag-and-drop CSV file uploader featuring live metadata extraction, file size checking, and structural data preview.
+
+- **📊 Comprehensive Dataset Overview**  
+  Displays dataset dimensions, memory footprint, attribute category breakdown, and overall health status.
+
+- **⚠️ Missing Value Analysis**  
+  Identifies missing data across all attributes, measures null percentages, calculates column severity, and details operational impact.
+
+- **🔄 Duplicate Record Detection**  
+  Detects duplicate entity records, computes dataset inflation rates, and highlights sample duplicate pairs for inspection.
+
+- **📐 Datatype Validation**  
+  Checks column datatypes against expected schemas to flag type mismatches, parsing warnings, and formatting errors.
+
+- **📈 Outlier & Anomaly Detection**  
+  Uses statistical Interquartile Range (IQR) techniques to highlight continuous numerical outliers and extreme boundary values.
+
+- **🎯 Business Impact & Recommendation Engine**  
+  Translates data errors into risk assessments and generates clear, actionable remediation steps.
+
+- **📊 Executive Master Dashboard**  
+  Presents a Composite Health Score (0–100), dataset status rating (*Excellent, Good, Average, Poor, Critical*), priority triage queue, and executive insights summary.
+
+---
+
+## ⚡ Quick Start (One-Command Launcher)
+
+Launch the complete DataLens platform with a single command:
+
+```bash
+python run.py
+```
+
+### Automatic Startup Sequence
 
 ```text
-                               ┌───────────────────────────────┐
-                               │     React / Vite Frontend     │
-                               │     http://localhost:3000     │
-                               └───────────────┬───────────────┘
-                                               │
-                                       REST APIs (JSON)
-                                               │
-                                               ▼
-                               ┌───────────────────────────────┐
-                               │       Flask REST Backend      │
-                               │     http://127.0.0.1:5000     │
-                               └───────────────┬───────────────┘
-                                               │
-                   ┌───────────────────────────┼───────────────────────────┐
-                   ▼                           ▼                           ▼
-       ┌───────────────────────┐   ┌───────────────────────┐   ┌───────────────────────┐
-       │   Dataset Manager     │   │    Analysis Engine    │   │ Report Cache Service  │
-       │  (In-Memory CSV Load) │   │ (Quality & Severity)  │   │  (In-Memory Caching)  │
-       └───────────────────────┘   └───────────────────────┘   └───────────────────────┘
+----------------------------------------
+Starting DataLens...
+----------------------------------------
+
+✓ Checking Python Environment
+✓ Checking Virtual Environment
+✓ Checking Flask
+✓ Checking Node.js
+✓ Checking npm Packages
+✓ Starting Flask Backend
+✓ Starting React Frontend
+✓ Opening Browser
+
+----------------------------------------
+DataLens Started Successfully
+----------------------------------------
+
+Backend:  http://127.0.0.1:5000
+Frontend: http://localhost:3000
+```
+
+---
+
+## 🏗 High-Level Architecture
+
+```text
+Browser User Interface
+         │
+         ▼
+  React Frontend
+         │
+         ▼
+   Flask Backend
+         │
+         ▼
+  Analysis Engine
+         │
+         ▼
+ Quality Reports & Dashboard
 ```
 
 ---
 
 ## 📊 Analysis Reports Summary
 
-| Report Module | Focus & Methodology | Primary Outputs & Deliverables |
+| Module | Core Functionality | Primary Insights |
 | :--- | :--- | :--- |
-| **Dataset Overview** | High-level dataset profiling | Row/Column counts, memory footprint, attribute data split. |
-| **Missing Values** | Null value distribution & ratio analysis | Missing counts, null percentages, severity, business impact callouts. |
-| **Duplicate Records** | Entity row duplication check | Duplicate row count, dataset inflation rate %, sample duplicate entity pairs. |
-| **Datatype Validation** | Schema type conformance analysis | Expected vs detected datatypes, invalid type count per attribute. |
-| **Outlier Detection** | IQR (Interquartile Range) statistical filtering | Lower/upper bounds, outlier count, min/max continuous values. |
-| **Master Dashboard** | Executive summary & issue triage | Health Score (0–100), dataset status, score breakdown, priority triage queue. |
+| **Dataset Overview** | High-level dataset profiling | Dimensions, memory footprint, data type split. |
+| **Missing Values** | Null ratio & distribution check | Missing counts, null %, severity rating, business impact. |
+| **Duplicate Records** | Entity redundancy analysis | Duplicate count, inflation rate %, sample duplicate pairs. |
+| **Datatype Validation** | Schema type conformance check | Expected vs detected types, invalid count per column. |
+| **Outlier Detection** | Statistical continuous outlier check | Lower/upper bounds, anomaly count, min/max values. |
+| **Executive Dashboard** | High-level summary & issue triage | Health Score (0–100), status rating, priority queue. |
 
 ---
 
 ## 🛠 Technology Stack
 
-| Category | Technology | Usage & Purpose |
+| Layer | Technology | Role |
 | :--- | :--- | :--- |
-| **Backend** | Python 3.8+ | Core runtime environment |
-| **Framework** | Flask 3.1 | Modular REST API service & routing blueprints |
-| **Data Processing** | Pandas, NumPy | Dataset manipulation, IQR statistics, schema validation |
-| **Frontend** | React 18, Vite 6 | Single Page Application (SPA) user interface |
-| **Icons & Styling** | Lucide React, CSS3 | Data visualization icons & responsive layout design |
-| **DevOps & Automation** | Python `subprocess`, `socket` | One-command launcher (`run.py`) and health checks |
+| **Frontend** | React 18, Vite 6 | Single-Page Application (SPA) user interface |
+| **Styling & Icons** | Lucide React, Modern CSS | Dark mode design system and data visualization icons |
+| **Backend** | Python 3.8+, Flask 3.1 | REST API web server and request handling |
+| **Data Engine** | Pandas, NumPy | Data manipulation, schema checking, and IQR statistics |
+| **DevOps & Automation** | Python Subprocess & Sockets | Automated cross-platform launcher (`run.py`) |
 
 ---
 
-## 📂 Repository Structure
+## 📂 High-Level Project Structure
 
 ```text
 DataLens/
-├── app.py                      # Flask REST Application Entry Point
-├── run.py                      # One-Command Enterprise Launcher
-├── main.py                     # CLI Demonstration Script
-├── requirements.txt            # Python Dependencies
-├── pyrightconfig.json          # Pyright Static Analysis Configuration
-├── config/                     # Configuration Rules & Severity Matrices
-│   ├── datatype_config.py
-│   ├── severity.py
-│   └── upload_config.py
-├── engine/                     # Core Analysis Engine
-│   └── analysis_engine.py
-├── services/                   # Business Services & Quality Logic
-│   ├── dashboard_service.py
-│   ├── dataset_manager.py
-│   ├── datatype_service.py
-│   ├── outlier_service.py
-│   ├── quality_service.py
-│   ├── report_cache_service.py
-│   └── upload_service.py
-├── reports/                    # Report Generation Modules
-│   ├── overview.py
-│   ├── missing.py
-│   ├── duplicate.py
-│   ├── datatype.py
-│   ├── outlier.py
-│   └── dashboard.py
-├── routes/                     # API Route Blueprints
-│   └── api.py
-├── data/
-│   ├── raw/
-│   └── sample/                 # Benchmark Sample Datasets
-├── uploads/                    # Temporary File Storage
-├── output/                     # Generated Demonstration Artifacts
-└── frontend/                   # React/Vite Frontend Application
-    ├── src/
-    │   ├── components/         # Reusable Table & Card Components
-    │   ├── context/            # Global DataLens State Provider
-    │   ├── pages/              # Application View Pages
-    │   └── services/           # Axios API Client Services
-    ├── index.html
-    ├── package.json
-    └── vite.config.js
+│
+├── frontend/             # React User Interface
+├── backend/              # Flask Web Application & API
+├── data/                 # Sample Datasets & Benchmarks
+├── docs/                 # Documentation & Demonstration Assets
+├── run.py                # One-Command Application Launcher
+└── README.md             # Product Showcase Documentation
 ```
 
 ---
 
-## 🚀 Quick Start & Installation
+## 🖼 Product Screenshots
 
-### Prerequisites
+> *Placeholder section for application interface screenshots.*
 
-Ensure you have the following installed on your system:
-- **Python** (version 3.8 or higher)
-- **Node.js** (version 16 or higher) and **npm**
+| Landing Page | Upload & Preview |
+| :---: | :---: |
+| ![Landing Page Placeholder](docs/screenshots/landing_page.png) | ![Upload Page Placeholder](docs/screenshots/upload_page.png) |
+
+| Dataset Overview | Missing Values Report |
+| :---: | :---: |
+| ![Overview Placeholder](docs/screenshots/overview_page.png) | ![Missing Values Placeholder](docs/screenshots/missing_report.png) |
+
+| Duplicate Records | Datatype Validation |
+| :---: | :---: |
+| ![Duplicate Report Placeholder](docs/screenshots/duplicate_report.png) | ![Datatype Report Placeholder](docs/screenshots/datatype_report.png) |
+
+| Outlier Detection | Executive Dashboard |
+| :---: | :---: |
+| ![Outlier Report Placeholder](docs/screenshots/outlier_report.png) | ![Dashboard Placeholder](docs/screenshots/dashboard_page.png) |
 
 ---
 
-### Step 1: Clone the Repository
+## 🎬 Product Demonstration
+
+> *Placeholder section for application demonstration video.*
+
+![DataLens Product Demo Placeholder](docs/demo/datalens_product_demo.gif)
+
+---
+
+## 🛠 Manual Installation Guide
+
+If you prefer to set up dependencies manually:
+
+### 1. Clone Repository
 
 ```bash
 git clone https://github.com/Arman-mn-0312/DataLens.git
 cd DataLens
 ```
 
----
-
-### Step 2: Install Dependencies
-
-#### Backend Dependencies
-Create and activate a virtual environment, then install Python requirements:
+### 2. Install Backend Dependencies
 
 ```bash
 python -m venv .venv
@@ -216,8 +221,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-#### Frontend Dependencies
-Navigate to the `frontend` directory and install npm packages:
+### 3. Install Frontend Dependencies
 
 ```bash
 cd frontend
@@ -225,59 +229,23 @@ npm install
 cd ..
 ```
 
----
-
-### Step 3: Launch the Application (One Command)
-
-From the project root directory, run the launcher:
+### 4. Run Application
 
 ```bash
 python run.py
 ```
 
-The launcher will automatically verify environment readiness, start the Flask backend on port `5000`, launch the React frontend on port `3000`, and open your default web browser to `http://localhost:3000`.
-
----
-
-## 🖼 Screenshots
-
-> *Placeholder section for interface screenshots.*
-
-| Landing Page | Upload & Preview Page |
-| :---: | :---: |
-| ![Landing Page Placeholder](docs/screenshots/landing_page.png) | ![Upload Page Placeholder](docs/screenshots/upload_page.png) |
-
-| Dataset Overview | Missing Values Report |
-| :---: | :---: |
-| ![Overview Placeholder](docs/screenshots/overview_page.png) | ![Missing Values Placeholder](docs/screenshots/missing_report.png) |
-
-| Duplicate Records Report | Datatype Validation Report |
-| :---: | :---: |
-| ![Duplicate Report Placeholder](docs/screenshots/duplicate_report.png) | ![Datatype Report Placeholder](docs/screenshots/datatype_report.png) |
-
-| Outlier Detection Report | Master Dashboard |
-| :---: | :---: |
-| ![Outlier Report Placeholder](docs/screenshots/outlier_report.png) | ![Dashboard Placeholder](docs/screenshots/dashboard_page.png) |
-
----
-
-## 🎬 Product Demonstration
-
-> *Placeholder section for demonstration GIF / Video.*
-
-![DataLens Product Demo Placeholder](docs/demo/datalens_product_demo.gif)
-
 ---
 
 ## 🗺 Planned Roadmap
 
-Future feature enhancements planned for upcoming iterations:
+Future capabilities planned for upcoming releases:
 
-- [ ] **🔐 User Authentication & Workspace Isolation**: Multi-tenant login and user workspace management.
-- [ ] **🗄 SQL Database Connectors**: Direct connection to PostgreSQL, MySQL, and Snowflake data warehouses.
-- [ ] **📄 Exportable PDF / Excel Reports**: Downloadable executive summary PDF reports.
-- [ ] **☁ Cloud Deployment & Containerization**: Dockerized setup and Kubernetes deployment manifests.
-- [ ] **📈 Historical Quality Trend Tracking**: Track quality score drift over time for scheduled dataset jobs.
+- [ ] **🔐 User Authentication & Workspaces**: Multi-user accounts and isolated team projects.
+- [ ] **🗄 Direct Database Connectors**: Direct connections to PostgreSQL, MySQL, and Snowflake.
+- [ ] **📄 Exportable PDF Reports**: One-click executive PDF report downloads.
+- [ ] **☁ Cloud Deployment**: Pre-built Docker containers and cloud deployment scripts.
+- [ ] **📈 Historical Quality Tracking**: Quality score drift monitoring across recurring datasets.
 
 ---
 
