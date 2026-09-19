@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useDataLens } from '../context/DataLensContext';
 import { PageHeader } from '../components/common/PageHeader';
 import { StatCard } from '../components/common/StatCard';
@@ -10,16 +11,26 @@ import { EmptyState } from '../components/common/EmptyState';
 import { AlertTriangle, Percent, Hash, ShieldAlert } from 'lucide-react';
 
 export const MissingValues = () => {
-  const { isUploaded, isAnalyzed, reportData, reportStatus, loadReport } = useDataLens();
+  const { isUploaded, reportData, reportStatus, loadReport } = useDataLens();
 
   useEffect(() => {
-    if (isAnalyzed && reportStatus.missing !== 'ready') {
+    if (isUploaded && reportStatus.missing !== 'ready') {
       loadReport('missing');
     }
-  }, [isAnalyzed]);
+  }, [isUploaded]);
 
-  if (!isUploaded || !isAnalyzed) {
-    return <EmptyState title="Dataset Analysis Pending" message="Upload a CSV dataset and click 'Analyze Dataset' to view the Missing Values Report." />;
+  if (!isUploaded) {
+    return (
+      <EmptyState 
+        title="No Dataset Uploaded" 
+        message="Please upload a CSV dataset to view the Missing Values Report." 
+        action={
+          <Link to="/upload" className="btn btn-primary">
+            Go to Upload Page
+          </Link>
+        }
+      />
+    );
   }
 
   if (reportStatus.missing === 'loading' || !reportData.missing) {

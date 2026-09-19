@@ -30,7 +30,7 @@ export const AnalysisProgressTracker = () => {
   return (
     <div className="progress-tracker-card fade-in">
       <div className="tracker-header">
-        <span className="tracker-title">Workflow Pipeline</span>
+        <span className="tracker-title">Analysis Progress</span>
         <span className="tracker-badge">
           {completedCount}/{steps.length} Completed
         </span>

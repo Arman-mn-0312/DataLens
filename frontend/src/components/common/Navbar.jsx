@@ -2,9 +2,9 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useDataLens } from '../../context/DataLensContext';
 import { DataLensLogo } from './DataLensLogo';
-import { Sun, Moon, FileText, Info, UploadCloud, CheckCircle2 } from 'lucide-react';
+import { Sun, Moon, UploadCloud, CheckCircle2, Menu, UserRound } from 'lucide-react';
 
-export const Navbar = () => {
+export const Navbar = ({ onMenuToggle }) => {
   const { theme, toggleTheme, isUploaded, isAnalyzed, dataset } = useDataLens();
   const location = useLocation();
 
@@ -16,42 +16,38 @@ export const Navbar = () => {
 
       {isUploaded && (
         <div className="dataset-status-pill">
-          <span className={`status-dot ${isAnalyzed ? 'active' : ''}`} />
+          <span className="status-dot active" />
           <span style={{ fontWeight: 600 }}>{dataset?.filename || 'dataset.csv'}</span>
           <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>
             ({dataset?.filesize || '4.8 MB'})
           </span>
-          {isAnalyzed ? (
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: 'var(--success)', fontSize: '0.75rem', fontWeight: 600 }}>
-              <CheckCircle2 size={13} /> Analyzed
-            </span>
-          ) : (
-            <span style={{ color: 'var(--warning)', fontSize: '0.75rem', fontWeight: 600 }}>
-              Pending Analysis
-            </span>
-          )}
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: 'var(--success)', fontSize: '0.75rem', fontWeight: 600 }}>
+            <CheckCircle2 size={13} /> Active Dataset
+          </span>
         </div>
       )}
 
       <nav className="navbar-nav">
+        {onMenuToggle && (
+          <button
+            onClick={onMenuToggle}
+            className="nav-link mobile-menu-button"
+            title="Open navigation"
+            aria-label="Open navigation"
+          >
+            <Menu size={19} />
+          </button>
+        )}
         <Link 
           to="/upload" 
           className={`nav-link ${location.pathname === '/upload' ? 'active' : ''}`}
         >
           <UploadCloud size={16} /> Upload
         </Link>
-        <Link 
-          to="/documentation" 
-          className={`nav-link ${location.pathname === '/documentation' ? 'active' : ''}`}
-        >
-          <FileText size={16} /> Documentation
-        </Link>
-        <Link 
-          to="/about" 
-          className={`nav-link ${location.pathname === '/about' ? 'active' : ''}`}
-        >
-          <Info size={16} /> About
-        </Link>
+
+        <div className="navbar-profile-widget" aria-label="User profile" title="User profile">
+          <div className="navbar-profile-icon"><UserRound size={17} /></div>
+        </div>
         
         <button 
           onClick={toggleTheme} 

@@ -1,0 +1,37 @@
+Order_ID,Date,Product,Category,City,Quantity,Price,Salesperson
+O101,01-07-2026,Laptop,Electronics,Surat,1,52000,Aarav
+O102,01-07-2026,Mouse,Electronics,Mumbai,3,700,Diya
+O103,02-07-2026,Chair,Furniture,Surat,2,4500,Rohan
+O104,02-07-2026,Keyboard,Electronics,Ahmedabad,,1500,Priya
+O105,03-07-2026,Desk,Furniture,Surat,1,,Aarav
+O106,03-07-2026,Monitor,Electronics,Mumbai,2,12500,Diya
+O107,04-07-2026,Notebook,Stationery,Ahmedabad,10,80,Rohan
+O108,04-07-2026,Pen Set,Stationery,Surat,5,250,Priya
+O109,05-07-2026,Office Chair,Furniture,Mumbai,1,7800,Aarav
+O110,05-07-2026,Printer,Electronics,Ahmedabad,1,16500,Diya
+O111,06-07-2026,Desk Lamp,Furniture,Surat,2,1800,Rohan
+O112,06-07-2026,USB Drive,Electronics,Mumbai,4,900,Priya
+O113,07-07-2026,File Folder,Stationery,Ahmedabad,8,120,Aarav
+O114,07-07-2026,Bookshelf,Furniture,Surat,1,6500,Diya
+O115,08-07-2026,Webcam,Electronics,Mumbai,2,3200,Rohan
+O116,08-07-2026,Marker Pack,Stationery,Ahmedabad,6,300,Priya
+O117,09-07-2026,Tablet,Electronics,Surat,1,28000,Aarav
+O118,09-07-2026,Storage Cabinet,Furniture,Mumbai,1,9500,Diya
+O119,10-07-2026,Paper Ream,Stationery,Ahmedabad,5,350,Rohan
+O120,10-07-2026,Headphones,Electronics,Surat,2,2400,Priya
+O103,02-07-2026,Chair,Furniture,Surat,2,4500,Rohan
+O106,03-07-2026,Monitor,Electronics,Mumbai,2,12500,Diya
+O121,11-07-2026,Whiteboard,Stationery,Mumbai,1,2200,Aarav
+O122,11-07-2026,Router,Electronics,Ahmedabad,2,2600,Diya
+O123,12-07-2026,Side Table,Furniture,Surat,2,3200,Rohan
+O124,12-07-2026,Stapler,Stationery,Mumbai,4,180,Priya
+O125,13-07-2026,Smartphone,Electronics,Ahmedabad,1,34000,Aarav
+O126,13-07-2026,Drawer Unit,Furniture,Surat,1,5400,Diya
+O127,14-07-2026,Calculator,Stationery,Mumbai,3,650,Rohan
+O128,14-07-2026,Power Bank,Electronics,Ahmedabad,2,1800,Priya
+O129,15-07-2026,Meeting Table,Furniture,Surat,1,14500,Aarav
+O130,15-07-2026,Sticky Notes,Stationery,Mumbai,10,90,Diya
+O131,16-07-2026,Projector,Electronics,Ahmedabad,1,42000,Rohan
+O132,16-07-2026,Visitor Chair,Furniture,Surat,4,2200,Priya
+O133,17-07-2026,Envelope Pack,Stationery,Mumbai,6,160,Aarav
+O134,17-07-2026,Bluetooth Speaker,Electronics,Ahmedabad,2,3800,Diya

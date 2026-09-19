@@ -6,9 +6,32 @@ const DataLensContext = createContext(null);
 
 export const DataLensProvider = ({ children }) => {
   const [theme, setTheme] = useState('light');
-  const [isUploaded, setIsUploaded] = useState(false);
-  const [isAnalyzed, setIsAnalyzed] = useState(false);
-  const [dataset, setDataset] = useState(null);
+
+  // Initialize dataset and upload status from sessionStorage for resilience
+  const [dataset, setDataset] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('datalens_dataset');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [isUploaded, setIsUploaded] = useState(() => {
+    try {
+      return !!sessionStorage.getItem('datalens_dataset');
+    } catch {
+      return false;
+    }
+  });
+
+  const [isAnalyzed, setIsAnalyzed] = useState(() => {
+    try {
+      return !!sessionStorage.getItem('datalens_dataset');
+    } catch {
+      return false;
+    }
+  });
 
   // In-flight request tracker to prevent duplicate concurrent network requests
   const pendingRequests = useRef({});
@@ -55,11 +78,17 @@ export const DataLensProvider = ({ children }) => {
       newDataset = SAMPLE_PREVIEW_DATA;
     }
 
+    try {
+      sessionStorage.setItem('datalens_dataset', JSON.stringify(newDataset));
+    } catch (e) {
+      console.warn('Failed to save dataset in sessionStorage:', e);
+    }
+
     setDataset(newDataset);
     setIsUploaded(true);
-    setIsAnalyzed(false); // Reset analysis state until user clicks "Analyze Dataset"
+    setIsAnalyzed(true);
 
-    // Reset report statuses to pending
+    // Reset report statuses to pending for new dataset
     setReportStatus({
       overview: 'pending',
       missing: 'pending',
@@ -106,6 +135,7 @@ export const DataLensProvider = ({ children }) => {
         const data = await fetchReportFromAPI(reportKey, filename);
         setReportData(prev => ({ ...prev, [reportKey]: data }));
         setReportStatus(prev => ({ ...prev, [reportKey]: data ? 'ready' : 'error' }));
+        if (data) setIsAnalyzed(true);
         return data;
       } catch (err) {
         console.error(`Error loading report '${reportKey}':`, err);
@@ -121,6 +151,11 @@ export const DataLensProvider = ({ children }) => {
   };
 
   const resetDataset = () => {
+    try {
+      sessionStorage.removeItem('datalens_dataset');
+    } catch (e) {
+      // ignore
+    }
     clearApiCache();
     pendingRequests.current = {};
     setIsUploaded(false);

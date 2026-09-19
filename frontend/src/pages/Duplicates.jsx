@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useDataLens } from '../context/DataLensContext';
 import { PageHeader } from '../components/common/PageHeader';
 import { StatCard } from '../components/common/StatCard';
@@ -10,16 +11,26 @@ import { EmptyState } from '../components/common/EmptyState';
 import { Copy, Percent, AlertCircle } from 'lucide-react';
 
 export const Duplicates = () => {
-  const { isUploaded, isAnalyzed, reportData, reportStatus, loadReport } = useDataLens();
+  const { isUploaded, reportData, reportStatus, loadReport } = useDataLens();
 
   useEffect(() => {
-    if (isAnalyzed && reportStatus.duplicate !== 'ready') {
+    if (isUploaded && reportStatus.duplicate !== 'ready') {
       loadReport('duplicate');
     }
-  }, [isAnalyzed]);
+  }, [isUploaded]);
 
-  if (!isUploaded || !isAnalyzed) {
-    return <EmptyState title="Dataset Analysis Pending" message="Upload a CSV dataset and click 'Analyze Dataset' to view the Duplicate Records Report." />;
+  if (!isUploaded) {
+    return (
+      <EmptyState 
+        title="No Dataset Uploaded" 
+        message="Please upload a CSV dataset to view the Duplicate Records Report." 
+        action={
+          <Link to="/upload" className="btn btn-primary">
+            Go to Upload Page
+          </Link>
+        }
+      />
+    );
   }
 
   if (reportStatus.duplicate === 'loading' || !reportData.duplicate) {

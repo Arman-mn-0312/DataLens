@@ -12,6 +12,7 @@ import { Duplicates } from './pages/Duplicates';
 import { DatatypeValidation } from './pages/DatatypeValidation';
 import { OutlierDetection } from './pages/OutlierDetection';
 import { Dashboard } from './pages/Dashboard';
+import { ReportsExport } from './pages/ReportsExport';
 import { About } from './pages/About';
 import { Documentation } from './pages/Documentation';
 import { NotFound } from './pages/NotFound';
@@ -38,6 +39,7 @@ export const App = () => {
             <Route path="/datatype" element={<DatatypeValidation />} />
             <Route path="/outlier" element={<OutlierDetection />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/reports" element={<ReportsExport />} />
             <Route path="/about" element={<About />} />
             <Route path="/documentation" element={<Documentation />} />
             <Route path="*" element={<NotFound />} />

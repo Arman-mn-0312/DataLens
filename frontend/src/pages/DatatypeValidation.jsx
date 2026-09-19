@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useDataLens } from '../context/DataLensContext';
 import { PageHeader } from '../components/common/PageHeader';
 import { StatCard } from '../components/common/StatCard';
@@ -10,16 +11,26 @@ import { EmptyState } from '../components/common/EmptyState';
 import { Binary, Columns, AlertTriangle } from 'lucide-react';
 
 export const DatatypeValidation = () => {
-  const { isUploaded, isAnalyzed, reportData, reportStatus, loadReport } = useDataLens();
+  const { isUploaded, reportData, reportStatus, loadReport } = useDataLens();
 
   useEffect(() => {
-    if (isAnalyzed && reportStatus.datatype !== 'ready') {
+    if (isUploaded && reportStatus.datatype !== 'ready') {
       loadReport('datatype');
     }
-  }, [isAnalyzed]);
+  }, [isUploaded]);
 
-  if (!isUploaded || !isAnalyzed) {
-    return <EmptyState title="Dataset Analysis Pending" message="Upload a CSV dataset and click 'Analyze Dataset' to view the Datatype Validation Report." />;
+  if (!isUploaded) {
+    return (
+      <EmptyState 
+        title="No Dataset Uploaded" 
+        message="Please upload a CSV dataset to view the Datatype Validation Report." 
+        action={
+          <Link to="/upload" className="btn btn-primary">
+            Go to Upload Page
+          </Link>
+        }
+      />
+    );
   }
 
   if (reportStatus.datatype === 'loading' || !reportData.datatype) {

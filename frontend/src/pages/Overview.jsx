@@ -9,19 +9,19 @@ import { EmptyState } from '../components/common/EmptyState';
 import { FileSearch, Database, Columns, AlertTriangle, Copy, ArrowRight } from 'lucide-react';
 
 export const Overview = () => {
-  const { isUploaded, isAnalyzed, reportData, reportStatus, loadReport } = useDataLens();
+  const { isUploaded, reportData, reportStatus, loadReport } = useDataLens();
 
   useEffect(() => {
-    if (isAnalyzed && reportStatus.overview !== 'ready') {
+    if (isUploaded && reportStatus.overview !== 'ready') {
       loadReport('overview');
     }
-  }, [isAnalyzed]);
+  }, [isUploaded]);
 
-  if (!isUploaded || !isAnalyzed) {
+  if (!isUploaded) {
     return (
       <EmptyState 
-        title="Dataset Analysis Pending"
-        message="Please upload your CSV file and click 'Analyze Dataset' to view the Overview report."
+        title="No Dataset Uploaded"
+        message="Please upload your CSV file to view the Overview report."
         action={
           <Link to="/upload" className="btn btn-primary">
             Go to Upload Page

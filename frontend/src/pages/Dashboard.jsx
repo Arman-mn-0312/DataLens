@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useDataLens } from '../context/DataLensContext';
 import { PageHeader } from '../components/common/PageHeader';
 import { StatCard } from '../components/common/StatCard';
@@ -6,19 +7,30 @@ import { QualityGaugeChart } from '../components/charts/QualityGaugeChart';
 import { IssueDistributionChart } from '../components/charts/IssueDistributionChart';
 import { LoaderSkeleton } from '../components/common/LoaderSkeleton';
 import { EmptyState } from '../components/common/EmptyState';
+import { ReportExportCard } from '../components/common/ReportExportCard';
 import { BarChart3, ShieldAlert, CheckCircle, AlertTriangle, Lightbulb } from 'lucide-react';
 
 export const Dashboard = () => {
-  const { isUploaded, isAnalyzed, reportData, reportStatus, loadReport } = useDataLens();
+  const { isUploaded, reportData, reportStatus, loadReport } = useDataLens();
 
   useEffect(() => {
-    if (isAnalyzed && reportStatus.dashboard !== 'ready') {
+    if (isUploaded && reportStatus.dashboard !== 'ready') {
       loadReport('dashboard');
     }
-  }, [isAnalyzed]);
+  }, [isUploaded]);
 
-  if (!isUploaded || !isAnalyzed) {
-    return <EmptyState title="Dataset Analysis Pending" message="Upload a CSV dataset and click 'Analyze Dataset' to view the Executive Master Dashboard." />;
+  if (!isUploaded) {
+    return (
+      <EmptyState 
+        title="No Dataset Uploaded" 
+        message="Please upload a CSV dataset to view the Executive Master Dashboard." 
+        action={
+          <Link to="/upload" className="btn btn-primary">
+            Go to Upload Page
+          </Link>
+        }
+      />
+    );
   }
 
   if (reportStatus.dashboard === 'loading' || !reportData.dashboard) {
@@ -41,6 +53,9 @@ export const Dashboard = () => {
           </span>
         }
       />
+
+      {/* Report Generation & Download */}
+      <ReportExportCard style={{ marginBottom: '1.5rem' }} />
 
       {/* Top Banner: Priority Focus */}
       <div className="card" style={{ borderLeft: '4px solid var(--danger)', marginBottom: '1.5rem', backgroundColor: 'var(--danger-light)' }}>

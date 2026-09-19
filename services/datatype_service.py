@@ -1,3 +1,4 @@
+import warnings
 import pandas as pd
 from config.datatype_config import DATA_TYPE_CONFIG
 
@@ -60,7 +61,9 @@ def is_datetime(value):
         return False
 
     try:
-        pd.to_datetime(value)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            pd.to_datetime(value)
         return True
     except (ValueError, TypeError):
         return False
@@ -137,26 +140,27 @@ TYPE_CHECKERS = {
 # ==========================================
 
 def detect_column_type(column):
-    # Remove missing values
-    column = column.dropna()
-
-    # Initialize counters
-    type_counts = {
-        type_name: 0
-        for type_name in TYPE_CHECKERS
-    }
-
-    # Check every value
-    for value in column:
-
-        for type_name, checker in TYPE_CHECKERS.items():
-
-            if checker(value):
-                type_counts[type_name] += 1
-                break
+    _, type_counts = classify_column(column)
 
     # Return the most common datatype
     return max(type_counts, key=lambda t: type_counts.get(t, 0))
+
+
+def classify_column(column):
+    column = column.dropna()
+    classifications = []
+    type_counts = {type_name: 0 for type_name in TYPE_CHECKERS}
+
+    for value in column:
+        for type_name, checker in TYPE_CHECKERS.items():
+            if checker(value):
+                classifications.append(type_name)
+                type_counts[type_name] += 1
+                break
+        else:
+            classifications.append(None)
+
+    return classifications, type_counts
 
 
 
@@ -167,27 +171,17 @@ def detect_column_type(column):
 # ==========================================
 
 
-def calculate_type_confidence(column):
-    # Remove missing values
+def calculate_type_confidence(column, classifications=None):
     column = column.dropna()
 
     # Handle empty column
     if len(column) == 0:
         return 0.0
 
-    # Count each datatype
-    type_counts = {
-        type_name: 0
-        for type_name in TYPE_CHECKERS
-    }
-
-    for value in column:
-
-        for type_name, checker in TYPE_CHECKERS.items():
-
-            if checker(value):
-                type_counts[type_name] += 1
-                break
+    if classifications is None:
+        _, type_counts = classify_column(column)
+    else:
+        type_counts = {type_name: classifications.count(type_name) for type_name in TYPE_CHECKERS}
 
     highest_count = max(type_counts.values())
 
@@ -203,12 +197,14 @@ def calculate_type_confidence(column):
 # calculate type confidence
 # ==========================================
 
-def calculate_invalid_values(column):
-    # Remove missing values
+def calculate_invalid_values(column, detected_type=None, classifications=None):
     column = column.dropna()
 
-    # Detect the expected datatype
-    detected_type = detect_column_type(column)
+    if detected_type is None:
+        detected_type = detect_column_type(column)
+
+    if classifications is not None:
+        return sum(classification != detected_type for classification in classifications)
 
     # Get the corresponding checker function
     checker = TYPE_CHECKERS[detected_type]

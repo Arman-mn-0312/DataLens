@@ -1,7 +1,7 @@
 import pandas as pd
 
 from services.datatype_service import (
-    detect_column_type,
+    classify_column,
     calculate_type_confidence,
     calculate_invalid_values
 )
@@ -22,11 +22,12 @@ def calculate_datatype_summary(df):
 
         detected_type = str(df[column].dtype)
 
-        expected_type = detect_column_type(df[column])
+        classifications, type_counts = classify_column(df[column])
+        expected_type = max(type_counts, key=lambda t: type_counts.get(t, 0))
 
-        confidence = calculate_type_confidence(df[column])
+        confidence = calculate_type_confidence(df[column], classifications)
 
-        invalid_values = calculate_invalid_values(df[column])
+        invalid_values = calculate_invalid_values(df[column], expected_type, classifications)
 
         invalid_percentage = (
             (invalid_values / total_values) * 100

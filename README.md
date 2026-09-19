@@ -172,19 +172,19 @@ DataLens/
 
 | Landing Page | Upload & Preview |
 | :---: | :---: |
-| ![Landing Page Placeholder](docs/screenshots/landing_page.png) | ![Upload Page Placeholder](docs/screenshots/upload_page.png) |
+| ![Landing Page Placeholder](docs\screensort\landing_page.png.png) | ![Upload Page Placeholder](docs/screenshots/upload_page.png.png) |
 
 | Dataset Overview | Missing Values Report |
 | :---: | :---: |
-| ![Overview Placeholder](docs/screenshots/overview_page.png) | ![Missing Values Placeholder](docs/screenshots/missing_report.png) |
+| ![Overview Placeholder](docs/screenshots/overview_page.png.png) | ![Missing Values Placeholder](docs/screenshots/missing_report.png.png) |
 
 | Duplicate Records | Datatype Validation |
 | :---: | :---: |
-| ![Duplicate Report Placeholder](docs/screenshots/duplicate_report.png) | ![Datatype Report Placeholder](docs/screenshots/datatype_report.png) |
+| ![Duplicate Report Placeholder](docs/screenshots/duplicate_report.png.png) | ![Datatype Report Placeholder](docs/screenshots/datatype_report.png.png) |
 
 | Outlier Detection | Executive Dashboard |
 | :---: | :---: |
-| ![Outlier Report Placeholder](docs/screenshots/outlier_report.png) | ![Dashboard Placeholder](docs/screenshots/dashboard_page.png) |
+| ![Outlier Report Placeholder](docs/screenshots/outlier_report.png.png) | ![Dashboard Placeholder](docs/screenshots/dashboard_page.png.png) |
 
 ---
 
@@ -192,7 +192,7 @@ DataLens/
 
 > *Placeholder section for application demonstration video.*
 
-![DataLens Product Demo Placeholder](docs/demo/datalens_product_demo.gif)
+![DataLens Product Demo Placeholder](docs/videos/datalens_demo.mp4.mp4)
 
 ---
 

@@ -2,11 +2,13 @@ import os
 from typing import Any, Optional, Tuple
 import pandas as pd
 import numpy as np
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_file
+from werkzeug.utils import secure_filename
 
 from services.upload_service import save_uploaded_file
 from services.dataset_manager import DatasetManager
 from services.report_cache_service import ReportCacheService
+from services.report_export_service import ReportExportService
 from services.dashboard_service import (
     get_highest_severity,
     calculate_health_score,
@@ -49,6 +51,37 @@ def get_dataset_df(filename: Optional[str]) -> Tuple[Optional[pd.DataFrame], Opt
     Retrieve active DataFrame via DatasetManager to prevent repeated CSV disk reads.
     """
     return DatasetManager.get_dataframe(filename)
+
+
+def get_cached_health_report(report_key, filename, df, generator):
+    """Reuse the existing report cache while preserving health-score inputs."""
+    raw_key = f"_health_input_{report_key}"
+    cached_report = ReportCacheService.get_report(raw_key, filename)
+    if isinstance(cached_report, pd.DataFrame):
+        return cached_report
+
+    cached_payload = ReportCacheService.get_report(report_key, filename)
+    if cached_payload is not None:
+        severity_values = []
+        if report_key in {"missing", "datatype", "outlier"}:
+            items_key = {
+                "missing": "columns",
+                "datatype": "issues",
+                "outlier": "summary"
+            }[report_key]
+            severity_values = [item.get("severity") for item in cached_payload.get(items_key, [])]
+        elif report_key == "duplicate":
+            severity_values = [cached_payload.get("overall_severity", "No Issue")]
+
+        if severity_values:
+            report = pd.DataFrame({"Severity": severity_values})
+            ReportCacheService.set_report(raw_key, report, filename)
+            return report
+
+    generated = generator(df)
+    report = generated[0] if report_key == "duplicate" else generated
+    ReportCacheService.set_report(raw_key, report, filename)
+    return report
 
 
 def sanitize_val(val: Any) -> Any:
@@ -149,10 +182,10 @@ def get_overview_report():
         return jsonify({"success": False, "message": err or "Failed to load dataset."}), 400
 
     overview_df = generate_overview_report(df)
-    missing_df = generate_missing_report(df)
-    dup_df, _ = generate_duplicate_report(df)
-    dtype_df = generate_datatype_report(df)
-    outlier_df = generate_outlier_report(df)
+    missing_df = get_cached_health_report("missing", filename, df, generate_missing_report)
+    dup_df = get_cached_health_report("duplicate", filename, df, generate_duplicate_report)
+    dtype_df = get_cached_health_report("datatype", filename, df, generate_datatype_report)
+    outlier_df = get_cached_health_report("outlier", filename, df, generate_outlier_report)
 
     health_res = calculate_health_score(missing_df, dup_df, dtype_df, outlier_df)
     health_score = health_res["Health Score"]
@@ -424,3 +457,73 @@ def get_dashboard_report_api():
 
     ReportCacheService.set_report("dashboard", response_payload, filename)
     return jsonify(response_payload), 200
+
+
+# ==========================
+# Report Generation & Export
+# ==========================
+
+@api.route("/reports/generate/pdf", methods=["POST"])
+def generate_pdf_report():
+    filename = (
+        request.args.get("filename")
+        or (request.get_json(silent=True) or {}).get("filename")
+        or DatasetManager.get_active_filename()
+    )
+    if not filename:
+        return jsonify({
+            "success": False,
+            "message": "No active dataset loaded. Please upload a dataset first."
+        }), 400
+
+    pdf_buffer, err = ReportExportService.generate_pdf(filename)
+    if err or pdf_buffer is None:
+        return jsonify({
+            "success": False,
+            "message": err or "Failed to generate PDF report."
+        }), 400
+
+    clean_base = secure_filename(filename)
+    if clean_base.lower().endswith(".csv"):
+        clean_base = clean_base[:-4]
+    download_filename = f"DataLens_{clean_base}_report.pdf"
+
+    return send_file(
+        pdf_buffer,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=download_filename
+    )
+
+
+@api.route("/reports/generate/excel", methods=["POST"])
+def generate_excel_report():
+    filename = (
+        request.args.get("filename")
+        or (request.get_json(silent=True) or {}).get("filename")
+        or DatasetManager.get_active_filename()
+    )
+    if not filename:
+        return jsonify({
+            "success": False,
+            "message": "No active dataset loaded. Please upload a dataset first."
+        }), 400
+
+    excel_buffer, err = ReportExportService.generate_excel(filename)
+    if err or excel_buffer is None:
+        return jsonify({
+            "success": False,
+            "message": err or "Failed to generate Excel report."
+        }), 400
+
+    clean_base = secure_filename(filename)
+    if clean_base.lower().endswith(".csv"):
+        clean_base = clean_base[:-4]
+    download_filename = f"DataLens_{clean_base}_report.xlsx"
+
+    return send_file(
+        excel_buffer,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=download_filename
+    )
