@@ -33,7 +33,7 @@ from services.quality_service import (
 )
 from reports.overview import generate_overview_report
 from reports.missing import generate_missing_report
-from reports.duplicate import generate_duplicate_report
+from reports.duplicate import generate_duplicate_report, get_duplicate_records
 from reports.datatype import generate_datatype_report
 from reports.outlier import generate_outlier_report
 from reports.dashboard import generate_dashboard_report
@@ -91,26 +91,39 @@ class ReportExportService:
     """
 
     @classmethod
-    def get_all_reports_data(cls, filename: Optional[str] = None) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    def _get_health_input(cls, report_key, filename, df, generator, session_key=None):
+        """Reuse raw report calculations shared with the dashboard and API."""
+        cache_key = f"_health_input_{report_key}"
+        cached = ReportCacheService.get_report(cache_key, filename, session_key=session_key)
+        if isinstance(cached, pd.DataFrame):
+            return cached
+
+        generated = generator(df)
+        report = generated[0] if report_key == "duplicate" else generated
+        ReportCacheService.set_report(cache_key, report, filename, session_key=session_key)
+        return report
+
+    @classmethod
+    def get_all_reports_data(cls, filename: Optional[str] = None, session_key: Optional[str] = None) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
         """
         Gathers all 6 reports for a dataset.
         Reuses cached reports from ReportCacheService. If any report is not yet cached,
         it generates it using the existing report generator functions and stores it in ReportCacheService.
         """
-        df, err = DatasetManager.get_dataframe(filename)
+        df, err = DatasetManager.get_dataframe(filename, session_key=session_key)
         if err or df is None:
             return None, err or "No active dataset loaded."
 
-        clean_filename = secure_filename(filename) if filename else (DatasetManager.get_active_filename() or "dataset.csv")
+        clean_filename = secure_filename(filename) if filename else (DatasetManager.get_active_filename(session_key=session_key) or "dataset.csv")
 
         # 1. Overview Report
-        overview_payload = ReportCacheService.get_report("overview", clean_filename)
+        overview_payload = ReportCacheService.get_report("overview", clean_filename, session_key=session_key)
         if overview_payload is None:
             overview_df = generate_overview_report(df)
-            missing_df = generate_missing_report(df)
-            dup_df, _ = generate_duplicate_report(df)
-            dtype_df = generate_datatype_report(df)
-            outlier_df = generate_outlier_report(df)
+            missing_df = cls._get_health_input("missing", clean_filename, df, generate_missing_report, session_key)
+            dup_df = cls._get_health_input("duplicate", clean_filename, df, generate_duplicate_report, session_key)
+            dtype_df = cls._get_health_input("datatype", clean_filename, df, generate_datatype_report, session_key)
+            outlier_df = cls._get_health_input("outlier", clean_filename, df, generate_outlier_report, session_key)
 
             health_res = calculate_health_score(missing_df, dup_df, dtype_df, outlier_df)
             health_score = health_res["Health Score"]
@@ -130,12 +143,12 @@ class ReportExportService:
                 "health_rating": health_rating,
                 "analyzed_at": "Just now"
             }
-            ReportCacheService.set_report("overview", overview_payload, clean_filename)
+            ReportCacheService.set_report("overview", overview_payload, clean_filename, session_key=session_key)
 
         # 2. Missing Values Report
-        missing_payload = ReportCacheService.get_report("missing", clean_filename)
+        missing_payload = ReportCacheService.get_report("missing", clean_filename, session_key=session_key)
         if missing_payload is None:
-            missing_df = generate_missing_report(df)
+            missing_df = cls._get_health_input("missing", clean_filename, df, generate_missing_report, session_key)
             total_missing = int(missing_df["Missing Count"].sum()) if not missing_df.empty else 0
             pct_missing_rows = round(float(df.isnull().any(axis=1).sum() / len(df)) * 100, 2) if len(df) > 0 else 0.0
             overall_severity = get_highest_severity(missing_df) if not missing_df.empty else "No Issue"
@@ -161,12 +174,13 @@ class ReportExportService:
                 "recommendation": recommendation,
                 "columns": columns
             }
-            ReportCacheService.set_report("missing", missing_payload, clean_filename)
+            ReportCacheService.set_report("missing", missing_payload, clean_filename, session_key=session_key)
 
         # 3. Duplicate Records Report
-        duplicate_payload = ReportCacheService.get_report("duplicate", clean_filename)
+        duplicate_payload = ReportCacheService.get_report("duplicate", clean_filename, session_key=session_key)
         if duplicate_payload is None:
-            summary_df, duplicate_records = generate_duplicate_report(df)
+            summary_df = cls._get_health_input("duplicate", clean_filename, df, generate_duplicate_report, session_key)
+            duplicate_records = get_duplicate_records(df)
             total_duplicates = int(summary_df["Duplicate Records"].iloc[0]) if not summary_df.empty else 0
             pct_duplicates = float(summary_df["Duplicate Percentage"].iloc[0]) if not summary_df.empty else 0.0
             overall_severity = str(summary_df["Severity"].iloc[0]) if not summary_df.empty else "No Issue"
@@ -189,12 +203,12 @@ class ReportExportService:
                 "recommendation": recommendation,
                 "duplicate_samples": samples
             }
-            ReportCacheService.set_report("duplicate", duplicate_payload, clean_filename)
+            ReportCacheService.set_report("duplicate", duplicate_payload, clean_filename, session_key=session_key)
 
         # 4. Datatype Validation Report
-        datatype_payload = ReportCacheService.get_report("datatype", clean_filename)
+        datatype_payload = ReportCacheService.get_report("datatype", clean_filename, session_key=session_key)
         if datatype_payload is None:
-            datatype_df = generate_datatype_report(df)
+            datatype_df = cls._get_health_input("datatype", clean_filename, df, generate_datatype_report, session_key)
             total_invalid = int(datatype_df["Invalid Values"].sum()) if not datatype_df.empty else 0
             overall_severity = get_highest_severity(datatype_df) if not datatype_df.empty else "No Issue"
             business_impact = generate_business_impact("datatype", overall_severity)
@@ -220,12 +234,12 @@ class ReportExportService:
                 "recommendation": recommendation,
                 "issues": issues
             }
-            ReportCacheService.set_report("datatype", datatype_payload, clean_filename)
+            ReportCacheService.set_report("datatype", datatype_payload, clean_filename, session_key=session_key)
 
         # 5. Outlier Detection Report
-        outlier_payload = ReportCacheService.get_report("outlier", clean_filename)
+        outlier_payload = ReportCacheService.get_report("outlier", clean_filename, session_key=session_key)
         if outlier_payload is None:
-            outlier_df = generate_outlier_report(df)
+            outlier_df = cls._get_health_input("outlier", clean_filename, df, generate_outlier_report, session_key)
             total_outliers = int(outlier_df["Outlier Count"].sum()) if not outlier_df.empty else 0
             overall_severity = get_highest_severity(outlier_df) if not outlier_df.empty else "No Issue"
             business_impact = generate_business_impact("outlier", overall_severity)
@@ -255,15 +269,15 @@ class ReportExportService:
                 "recommendation": recommendation,
                 "summary": summary
             }
-            ReportCacheService.set_report("outlier", outlier_payload, clean_filename)
+            ReportCacheService.set_report("outlier", outlier_payload, clean_filename, session_key=session_key)
 
         # 6. Dashboard Report
-        dashboard_payload = ReportCacheService.get_report("dashboard", clean_filename)
+        dashboard_payload = ReportCacheService.get_report("dashboard", clean_filename, session_key=session_key)
         if dashboard_payload is None:
-            missing_df = generate_missing_report(df)
-            dup_df, _ = generate_duplicate_report(df)
-            dtype_df = generate_datatype_report(df)
-            outlier_df = generate_outlier_report(df)
+            missing_df = cls._get_health_input("missing", clean_filename, df, generate_missing_report, session_key)
+            dup_df = cls._get_health_input("duplicate", clean_filename, df, generate_duplicate_report, session_key)
+            dtype_df = cls._get_health_input("datatype", clean_filename, df, generate_datatype_report, session_key)
+            outlier_df = cls._get_health_input("outlier", clean_filename, df, generate_outlier_report, session_key)
 
             dash_report = generate_dashboard_report(missing_df, dup_df, dtype_df, outlier_df)
             dash_summary_df = dash_report["dashboard_summary"]
@@ -306,7 +320,7 @@ class ReportExportService:
                 "score_breakdown": score_breakdown,
                 "quick_insights": quick_insights
             }
-            ReportCacheService.set_report("dashboard", dashboard_payload, clean_filename)
+            ReportCacheService.set_report("dashboard", dashboard_payload, clean_filename, session_key=session_key)
 
         full_data = {
             "filename": clean_filename,
@@ -326,11 +340,11 @@ class ReportExportService:
     # ==========================================
 
     @classmethod
-    def generate_pdf(cls, filename: Optional[str] = None) -> Tuple[Optional[io.BytesIO], Optional[str]]:
+    def generate_pdf(cls, filename: Optional[str] = None, session_key: Optional[str] = None) -> Tuple[Optional[io.BytesIO], Optional[str]]:
         """
         Transforms cached DataLens report data into a professional PDF document.
         """
-        data, err = cls.get_all_reports_data(filename)
+        data, err = cls.get_all_reports_data(filename, session_key=session_key)
         if err or data is None:
             return None, err or "Failed to retrieve analysis data."
 
@@ -774,11 +788,11 @@ class ReportExportService:
     # ==========================================
 
     @classmethod
-    def generate_excel(cls, filename: Optional[str] = None) -> Tuple[Optional[io.BytesIO], Optional[str]]:
+    def generate_excel(cls, filename: Optional[str] = None, session_key: Optional[str] = None) -> Tuple[Optional[io.BytesIO], Optional[str]]:
         """
         Transforms cached DataLens report data into a structured, professionally styled Excel (.xlsx) workbook.
         """
-        data, err = cls.get_all_reports_data(filename)
+        data, err = cls.get_all_reports_data(filename, session_key=session_key)
         if err or data is None:
             return None, err or "Failed to retrieve analysis data."
 

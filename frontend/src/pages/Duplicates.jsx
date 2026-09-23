@@ -14,10 +14,10 @@ export const Duplicates = () => {
   const { isUploaded, reportData, reportStatus, loadReport } = useDataLens();
 
   useEffect(() => {
-    if (isUploaded && reportStatus.duplicate !== 'ready') {
+    if (isUploaded && reportStatus.duplicate === 'pending') {
       loadReport('duplicate');
     }
-  }, [isUploaded]);
+  }, [isUploaded, reportStatus.duplicate]);
 
   if (!isUploaded) {
     return (
@@ -29,6 +29,16 @@ export const Duplicates = () => {
             Go to Upload Page
           </Link>
         }
+      />
+    );
+  }
+
+  if (reportStatus.duplicate === 'error') {
+    return (
+      <EmptyState
+        title="Unable to Load Duplicate Records Report"
+        message="The report request failed. Please try again."
+        action={<button className="btn btn-primary" onClick={() => loadReport('duplicate')}>Retry</button>}
       />
     );
   }

@@ -14,10 +14,10 @@ export const DatatypeValidation = () => {
   const { isUploaded, reportData, reportStatus, loadReport } = useDataLens();
 
   useEffect(() => {
-    if (isUploaded && reportStatus.datatype !== 'ready') {
+    if (isUploaded && reportStatus.datatype === 'pending') {
       loadReport('datatype');
     }
-  }, [isUploaded]);
+  }, [isUploaded, reportStatus.datatype]);
 
   if (!isUploaded) {
     return (
@@ -29,6 +29,16 @@ export const DatatypeValidation = () => {
             Go to Upload Page
           </Link>
         }
+      />
+    );
+  }
+
+  if (reportStatus.datatype === 'error') {
+    return (
+      <EmptyState
+        title="Unable to Load Datatype Validation Report"
+        message="The report request failed. Please try again."
+        action={<button className="btn btn-primary" onClick={() => loadReport('datatype')}>Retry</button>}
       />
     );
   }

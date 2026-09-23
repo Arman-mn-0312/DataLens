@@ -16,14 +16,12 @@ import {
   Database,
   UploadCloud,
   ChevronDown,
-  UserRound,
   CircleCheck,
   CircleDashed,
   X
 } from 'lucide-react';
 
 const qualityItems = [
-  { to: '/overview', label: 'Overview', icon: FileSearch, status: 'overview' },
   { to: '/missing', label: 'Missing Values', icon: AlertTriangle, status: 'missing' },
   { to: '/duplicate', label: 'Duplicate Records', icon: Copy, status: 'duplicate' },
   { to: '/datatype', label: 'Datatype Validation', icon: Binary, status: 'datatype' },
@@ -33,7 +31,7 @@ const qualityItems = [
 export const Sidebar = ({ isOpen = true, onNavigate }) => {
   const { reportStatus, dataset, isUploaded } = useDataLens();
   const location = useLocation();
-  const [openSections, setOpenSections] = useState({ quality: true, reports: false, dataset: false });
+  const [openSections, setOpenSections] = useState({ main: true, quality: true, reports: false, dataset: false });
 
   const toggleSection = (section) => {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -80,15 +78,23 @@ export const Sidebar = ({ isOpen = true, onNavigate }) => {
         </div>
 
         <div className="sidebar-nav-group">
-          <div className="sidebar-label">Main</div>
           <NavLink to="/" end onClick={closeOnNavigate} className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}>
             <div className="item-left"><HomeIcon size={16} /><span>Home</span></div>
           </NavLink>
-          <NavLink to="/dashboard" onClick={closeOnNavigate} className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}>
-            <div className="item-left"><BarChart3 size={16} /><span>Dashboard</span></div>
-            {getStatusBadge('dashboard')}
-          </NavLink>
         </div>
+
+        {renderSection('main', 'Main', (
+          <>
+            <NavLink to="/overview" onClick={closeOnNavigate} className={({ isActive }) => `sidebar-sub-item ${isActive ? 'active' : ''}`}>
+              <span className="item-left"><FileSearch size={15} /><span>Overview</span></span>
+              {getStatusBadge('overview')}
+            </NavLink>
+            <NavLink to="/dashboard" onClick={closeOnNavigate} className={({ isActive }) => `sidebar-sub-item ${isActive ? 'active' : ''}`}>
+              <span className="item-left"><BarChart3 size={15} /><span>Dashboard</span></span>
+              {getStatusBadge('dashboard')}
+            </NavLink>
+          </>
+        ), location.pathname === '/overview' || location.pathname === '/dashboard')}
 
         {renderSection('quality', 'Data Quality Analysis', qualityItems.map(({ to, label, icon: Icon, status }) => (
           <NavLink key={to} to={to} onClick={closeOnNavigate} className={({ isActive }) => `sidebar-sub-item ${isActive ? 'active' : ''}`}>
@@ -127,11 +133,6 @@ export const Sidebar = ({ isOpen = true, onNavigate }) => {
           <NavLink to="/about" onClick={closeOnNavigate} className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}>
             <div className="item-left"><Info size={16} /><span>About</span></div>
           </NavLink>
-        </div>
-
-        <div className="sidebar-profile-card">
-          <div className="sidebar-profile-icon"><UserRound size={18} /></div>
-          <div><strong>DataLens User</strong><span>Analyst</span></div>
         </div>
 
         <div className="sidebar-progress-section">

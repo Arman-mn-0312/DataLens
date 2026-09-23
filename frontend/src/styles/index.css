@@ -1,4 +1,5 @@
 @import './variables.css';
+@import './landing.css';
 
 /* Global Reset & Base Styles */
 *, *::before, *::after {

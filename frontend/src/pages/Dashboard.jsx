@@ -14,10 +14,10 @@ export const Dashboard = () => {
   const { isUploaded, reportData, reportStatus, loadReport } = useDataLens();
 
   useEffect(() => {
-    if (isUploaded && reportStatus.dashboard !== 'ready') {
+    if (isUploaded && reportStatus.dashboard === 'pending') {
       loadReport('dashboard');
     }
-  }, [isUploaded]);
+  }, [isUploaded, reportStatus.dashboard]);
 
   if (!isUploaded) {
     return (
@@ -31,6 +31,10 @@ export const Dashboard = () => {
         }
       />
     );
+  }
+
+  if (reportStatus.dashboard === 'error') {
+    return <EmptyState title="Unable to Load Dashboard" message="The report request failed. Check your connection and try again." action={<button className="btn btn-primary" onClick={() => loadReport('dashboard')}>Retry</button>} />;
   }
 
   if (reportStatus.dashboard === 'loading' || !reportData.dashboard) {

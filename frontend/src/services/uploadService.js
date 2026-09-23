@@ -1,4 +1,5 @@
 import API_BASE_URL from "./api";
+import { clearStoredToken, getStoredToken } from "../auth/authService";
 
 export async function uploadDataset(file) {
     const formData = new FormData();
@@ -9,9 +10,16 @@ export async function uploadDataset(file) {
         `${API_BASE_URL}/upload`,
         {
             method: "POST",
+            headers: getStoredToken()
+                ? { Authorization: `Bearer ${getStoredToken()}` }
+                : {},
             body: formData,
         }
     );
+
+    if (response.status === 401) {
+        clearStoredToken();
+    }
 
     return response.json();
 }

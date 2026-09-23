@@ -14,10 +14,10 @@ export const OutlierDetection = () => {
   const { isUploaded, reportData, reportStatus, loadReport } = useDataLens();
 
   useEffect(() => {
-    if (isUploaded && reportStatus.outlier !== 'ready') {
+    if (isUploaded && reportStatus.outlier === 'pending') {
       loadReport('outlier');
     }
-  }, [isUploaded]);
+  }, [isUploaded, reportStatus.outlier]);
 
   if (!isUploaded) {
     return (
@@ -31,6 +31,10 @@ export const OutlierDetection = () => {
         }
       />
     );
+  }
+
+  if (reportStatus.outlier === 'error') {
+    return <EmptyState title="Unable to Load Outlier Report" message="The report request failed. Check your connection and try again." action={<button className="btn btn-primary" onClick={() => loadReport('outlier')}>Retry</button>} />;
   }
 
   if (reportStatus.outlier === 'loading' || !reportData.outlier) {

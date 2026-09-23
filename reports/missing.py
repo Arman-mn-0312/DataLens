@@ -9,7 +9,8 @@ from services.quality_service import (
 def calculate_missing_percentage(df):
     missing_count = df.isnull().sum()
 
-    missing_percentage = (missing_count / len(df)) * 100
+    row_count = len(df)
+    missing_percentage = (missing_count / row_count * 100) if row_count else missing_count.astype(float)
 
     missing_report = pd.DataFrame({
         "Column": df.columns,

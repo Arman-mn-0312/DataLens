@@ -1,47 +1,66 @@
 from werkzeug.utils import secure_filename
+from threading import RLock
 
 
 class ReportCacheService:
-    _cache = {}
-    _cached_filename = None
+    _sessions = {}
+    _locks = {}
+    _sessions_lock = RLock()
 
     @classmethod
-    def get_report(cls, report_key, filename=None):
+    def _get_session(cls, session_key):
+        key = session_key or "default"
+        with cls._sessions_lock:
+            if key not in cls._sessions:
+                cls._sessions[key] = {"cache": {}, "cached_filename": None}
+            if key not in cls._locks:
+                cls._locks[key] = RLock()
+            return cls._sessions[key], cls._locks[key]
+
+    @classmethod
+    def get_report(cls, report_key, filename=None, session_key=None):
         """
         Retrieve cached report response payload for a given report key and filename.
         """
-        clean_filename = secure_filename(filename) if filename else None
-        if clean_filename and cls._cached_filename != clean_filename:
-            return None
-        return cls._cache.get(report_key)
+        session, lock = cls._get_session(session_key)
+        with lock:
+            clean_filename = secure_filename(filename) if filename else None
+            if clean_filename and session["cached_filename"] != clean_filename:
+                return None
+            return session["cache"].get(report_key)
 
     @classmethod
-    def set_report(cls, report_key, payload, filename=None):
+    def set_report(cls, report_key, payload, filename=None, session_key=None):
         """
         Cache a generated report response payload.
         """
-        clean_filename = secure_filename(filename) if filename else None
-        if clean_filename:
-            if cls._cached_filename != clean_filename:
-                cls.clear_cache()
-                cls._cached_filename = clean_filename
-        cls._cache[report_key] = payload
+        session, lock = cls._get_session(session_key)
+        with lock:
+            clean_filename = secure_filename(filename) if filename else None
+            if clean_filename and session["cached_filename"] != clean_filename:
+                session["cache"].clear()
+                session["cached_filename"] = clean_filename
+            session["cache"][report_key] = payload
 
     @classmethod
-    def has_report(cls, report_key, filename=None):
+    def has_report(cls, report_key, filename=None, session_key=None):
         """
         Check if a report is present in cache.
         """
-        clean_filename = secure_filename(filename) if filename else None
-        if clean_filename and cls._cached_filename != clean_filename:
-            return False
-        return report_key in cls._cache
+        session, lock = cls._get_session(session_key)
+        with lock:
+            clean_filename = secure_filename(filename) if filename else None
+            if clean_filename and session["cached_filename"] != clean_filename:
+                return False
+            return report_key in session["cache"]
 
     @classmethod
-    def clear_cache(cls):
+    def clear_cache(cls, session_key=None):
         """
         Clear all cached reports.
         """
-        cls._cache.clear()
-        cls._cached_filename = None
+        session, lock = cls._get_session(session_key)
+        with lock:
+            session["cache"].clear()
+            session["cached_filename"] = None
 

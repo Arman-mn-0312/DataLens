@@ -14,10 +14,10 @@ export const MissingValues = () => {
   const { isUploaded, reportData, reportStatus, loadReport } = useDataLens();
 
   useEffect(() => {
-    if (isUploaded && reportStatus.missing !== 'ready') {
+    if (isUploaded && reportStatus.missing === 'pending') {
       loadReport('missing');
     }
-  }, [isUploaded]);
+  }, [isUploaded, reportStatus.missing]);
 
   if (!isUploaded) {
     return (
@@ -29,6 +29,16 @@ export const MissingValues = () => {
             Go to Upload Page
           </Link>
         }
+      />
+    );
+  }
+
+  if (reportStatus.missing === 'error') {
+    return (
+      <EmptyState
+        title="Unable to Load Missing Values Report"
+        message="The report request failed. Please try again."
+        action={<button className="btn btn-primary" onClick={() => loadReport('missing')}>Retry</button>}
       />
     );
   }

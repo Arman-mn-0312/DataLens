@@ -12,10 +12,10 @@ export const Overview = () => {
   const { isUploaded, reportData, reportStatus, loadReport } = useDataLens();
 
   useEffect(() => {
-    if (isUploaded && reportStatus.overview !== 'ready') {
+    if (isUploaded && reportStatus.overview === 'pending') {
       loadReport('overview');
     }
-  }, [isUploaded]);
+  }, [isUploaded, reportStatus.overview]);
 
   if (!isUploaded) {
     return (
@@ -29,6 +29,10 @@ export const Overview = () => {
         }
       />
     );
+  }
+
+  if (reportStatus.overview === 'error') {
+    return <EmptyState title="Unable to Load Dataset Overview" message="The report request failed. Check your connection and try again." action={<button className="btn btn-primary" onClick={() => loadReport('overview')}>Retry</button>} />;
   }
 
   if (reportStatus.overview === 'loading' || !reportData.overview) {

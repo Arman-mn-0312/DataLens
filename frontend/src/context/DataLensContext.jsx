@@ -1,10 +1,12 @@
-import React, { createContext, useContext, useState, useRef } from 'react';
+import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react';
 import { SAMPLE_PREVIEW_DATA } from '../services/mockData';
 import { fetchReportFromAPI, clearApiCache } from '../services/api';
+import { useAuth } from '../auth/AuthContext';
 
 const DataLensContext = createContext(null);
 
 export const DataLensProvider = ({ children }) => {
+  const { user, loading: authLoading } = useAuth();
   const [theme, setTheme] = useState('light');
 
   // Initialize dataset and upload status from sessionStorage for resilience
@@ -35,6 +37,7 @@ export const DataLensProvider = ({ children }) => {
 
   // In-flight request tracker to prevent duplicate concurrent network requests
   const pendingRequests = useRef({});
+  const datasetVersion = useRef(0);
 
   // Status tracker for each report
   const [reportStatus, setReportStatus] = useState({
@@ -62,11 +65,12 @@ export const DataLensProvider = ({ children }) => {
   };
 
   const uploadDataset = (file, datasetData = null) => {
+    datasetVersion.current += 1;
     // Clear API cache on new dataset upload
     clearApiCache();
     pendingRequests.current = {};
 
-    let newDataset = datasetData;
+    let newDataset = datasetData ? { ...datasetData, ownerId: user?.id } : datasetData;
     if (!newDataset && file) {
       newDataset = {
         ...SAMPLE_PREVIEW_DATA,
@@ -76,6 +80,10 @@ export const DataLensProvider = ({ children }) => {
       };
     } else if (!newDataset && !file) {
       newDataset = SAMPLE_PREVIEW_DATA;
+    }
+
+    if (newDataset) {
+      newDataset = { ...newDataset, ownerId: user?.id };
     }
 
     try {
@@ -129,20 +137,29 @@ export const DataLensProvider = ({ children }) => {
 
     setReportStatus(prev => ({ ...prev, [reportKey]: 'loading' }));
     const filename = dataset?.filename;
+    const requestVersion = datasetVersion.current;
 
     const requestPromise = (async () => {
       try {
         const data = await fetchReportFromAPI(reportKey, filename);
+        if (requestVersion !== datasetVersion.current) return null;
+        if (!data || data.success === false) {
+          throw new Error(data?.message || `Unable to load the ${reportKey} report.`);
+        }
         setReportData(prev => ({ ...prev, [reportKey]: data }));
-        setReportStatus(prev => ({ ...prev, [reportKey]: data ? 'ready' : 'error' }));
-        if (data) setIsAnalyzed(true);
+        setReportStatus(prev => ({ ...prev, [reportKey]: 'ready' }));
+        setIsAnalyzed(true);
         return data;
       } catch (err) {
         console.error(`Error loading report '${reportKey}':`, err);
-        setReportStatus(prev => ({ ...prev, [reportKey]: 'error' }));
+        if (requestVersion === datasetVersion.current) {
+          setReportStatus(prev => ({ ...prev, [reportKey]: 'error' }));
+        }
         return null;
       } finally {
-        delete pendingRequests.current[reportKey];
+        if (pendingRequests.current[reportKey] === requestPromise) {
+          delete pendingRequests.current[reportKey];
+        }
       }
     })();
 
@@ -150,7 +167,8 @@ export const DataLensProvider = ({ children }) => {
     return await requestPromise;
   };
 
-  const resetDataset = () => {
+  const resetDataset = useCallback(() => {
+    datasetVersion.current += 1;
     try {
       sessionStorage.removeItem('datalens_dataset');
     } catch (e) {
@@ -161,7 +179,21 @@ export const DataLensProvider = ({ children }) => {
     setIsUploaded(false);
     setIsAnalyzed(false);
     setDataset(null);
-  };
+    setReportStatus({
+      overview: 'pending', missing: 'pending', duplicate: 'pending',
+      datatype: 'pending', outlier: 'pending', dashboard: 'pending'
+    });
+    setReportData({
+      overview: null, dashboard: null, missing: null,
+      duplicate: null, datatype: null, outlier: null
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!authLoading && (!user?.id || dataset?.ownerId !== user.id)) {
+      resetDataset();
+    }
+  }, [authLoading, user?.id, dataset?.ownerId, resetDataset]);
 
   return (
     <DataLensContext.Provider value={{

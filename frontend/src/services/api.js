@@ -1,9 +1,16 @@
-const API_BASE_URL = "http://127.0.0.1:5000";
+import { clearStoredToken, getStoredToken } from "../auth/authService";
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 const apiCache = new Map();
 
 export function clearApiCache() {
   apiCache.clear();
+}
+
+function getAuthHeaders() {
+  const token = getStoredToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 export async function fetchReportFromAPI(reportKey, filename) {
@@ -15,7 +22,12 @@ export async function fetchReportFromAPI(reportKey, filename) {
 
   const fetchPromise = (async () => {
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: getAuthHeaders(),
+      });
+      if (response.status === 401) {
+        clearStoredToken();
+      }
       if (!response.ok) {
         throw new Error(`Failed to fetch ${reportKey} report: ${response.statusText}`);
       }
@@ -23,7 +35,7 @@ export async function fetchReportFromAPI(reportKey, filename) {
     } catch (error) {
       console.error(`Error fetching report '${reportKey}':`, error);
       apiCache.delete(url);
-      return null;
+      throw error;
     }
   })();
 
@@ -37,10 +49,15 @@ export async function downloadReportFile(format, filename) {
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
     },
     body: JSON.stringify({ filename })
   });
+
+  if (response.status === 401) {
+    clearStoredToken();
+  }
 
   if (!response.ok) {
     let errorMsg = `Failed to generate ${format.toUpperCase()} report.`;

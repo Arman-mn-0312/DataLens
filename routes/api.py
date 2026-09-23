@@ -1,10 +1,16 @@
 import os
+import math
 from typing import Any, Optional, Tuple
 import pandas as pd
 import numpy as np
 from flask import Blueprint, jsonify, request, send_file
 from werkzeug.utils import secure_filename
 
+from auth.security import (
+    decode_access_token,
+    get_auth_token_from_request,
+    get_current_user_from_request,
+)
 from services.upload_service import save_uploaded_file
 from services.dataset_manager import DatasetManager
 from services.report_cache_service import ReportCacheService
@@ -18,9 +24,10 @@ from services.quality_service import (
     generate_business_impact,
     generate_recommendation
 )
+from services.ai_service import get_ai_business_impact_and_recommendation
 from reports.overview import generate_overview_report
 from reports.missing import generate_missing_report
-from reports.duplicate import generate_duplicate_report
+from reports.duplicate import generate_duplicate_report, get_duplicate_records
 from reports.datatype import generate_datatype_report
 from reports.outlier import generate_outlier_report
 from reports.dashboard import generate_dashboard_report
@@ -28,59 +35,104 @@ from reports.dashboard import generate_dashboard_report
 api = Blueprint("api", __name__)
 
 
+@api.before_request
+def require_data_auth_for_api_routes():
+    if request.method == "OPTIONS":
+        return None
+
+    public_paths = {"/", "/health"}
+    if request.path in public_paths:
+        return None
+
+    if request.path.startswith("/reports") or request.path.startswith("/upload"):
+        token = get_auth_token_from_request()
+        if not token or decode_access_token(token) is None:
+            return jsonify({"success": False, "message": "Authentication required."}), 401
+
+    return None
+
+
+def get_session_key() -> str:
+    user = get_current_user_from_request()
+    return str(user.get("sub")) if user and user.get("sub") is not None else "default"
+
+
 def to_int(val: Any) -> int:
     """Safely convert Pandas/Numpy scalar or integer representation to Python int."""
-    if val is None:
+    if val is None or pd.isna(val):
         return 0
     if hasattr(val, "item"):
-        return int(val.item())
-    return int(val)
+        val = val.item()
+    try:
+        if math.isnan(float(val)):
+            return 0
+        return int(val)
+    except (ValueError, TypeError, OverflowError):
+        return 0
 
 
 def to_float(val: Any) -> float:
     """Safely convert Pandas/Numpy scalar or float representation to Python float."""
-    if val is None:
+    if val is None or pd.isna(val):
         return 0.0
     if hasattr(val, "item"):
-        return float(val.item())
-    return float(val)
+        val = val.item()
+    try:
+        f = float(val)
+        return 0.0 if math.isnan(f) or math.isinf(f) else f
+    except (ValueError, TypeError, OverflowError):
+        return 0.0
 
 
 def get_dataset_df(filename: Optional[str]) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
     """
     Retrieve active DataFrame via DatasetManager to prevent repeated CSV disk reads.
     """
-    return DatasetManager.get_dataframe(filename)
+    return DatasetManager.get_dataframe(filename, session_key=get_session_key())
 
 
 def get_cached_health_report(report_key, filename, df, generator):
     """Reuse the existing report cache while preserving health-score inputs."""
+    session_key = get_session_key()
     raw_key = f"_health_input_{report_key}"
-    cached_report = ReportCacheService.get_report(raw_key, filename)
+    cached_report = ReportCacheService.get_report(raw_key, filename, session_key=session_key)
     if isinstance(cached_report, pd.DataFrame):
         return cached_report
 
-    cached_payload = ReportCacheService.get_report(report_key, filename)
+    cached_payload = ReportCacheService.get_report(report_key, filename, session_key=session_key)
     if cached_payload is not None:
-        severity_values = []
-        if report_key in {"missing", "datatype", "outlier"}:
-            items_key = {
-                "missing": "columns",
-                "datatype": "issues",
-                "outlier": "summary"
-            }[report_key]
-            severity_values = [item.get("severity") for item in cached_payload.get(items_key, [])]
-        elif report_key == "duplicate":
-            severity_values = [cached_payload.get("overall_severity", "No Issue")]
+        if report_key == "missing":
+            report = pd.DataFrame({
+                "Missing Count": [item.get("missing_count", 0) for item in cached_payload.get("columns", [])],
+                "Missing Percentage": [item.get("missing_pct", 0) for item in cached_payload.get("columns", [])],
+                "Severity": [item.get("severity", "No Issue") for item in cached_payload.get("columns", [])],
+            })
+        elif report_key == "datatype":
+            report = pd.DataFrame({
+                "Invalid Values": [item.get("invalid_count", 0) for item in cached_payload.get("issues", [])],
+                "Severity": [item.get("severity", "No Issue") for item in cached_payload.get("issues", [])],
+            })
+        elif report_key == "outlier":
+            report = pd.DataFrame({
+                "Outlier Count": [item.get("outlier_count", 0) for item in cached_payload.get("summary", [])],
+                "Outlier Percentage": [item.get("percentage", 0) for item in cached_payload.get("summary", [])],
+                "Severity": [item.get("severity", "No Issue") for item in cached_payload.get("summary", [])],
+            })
+        else:
+            report = pd.DataFrame({
+                "Total Records": [len(df)],
+                "Duplicate Records": [cached_payload.get("total_duplicate_rows", 0)],
+                "Duplicate Percentage": [cached_payload.get("percentage_duplicates", 0)],
+                "Severity": [cached_payload.get("overall_severity", "No Issue")],
+            })
 
-        if severity_values:
-            report = pd.DataFrame({"Severity": severity_values})
-            ReportCacheService.set_report(raw_key, report, filename)
+        if not report.empty:
+            ReportCacheService.set_report(raw_key, report, filename, session_key=session_key)
             return report
 
     generated = generator(df)
     report = generated[0] if report_key == "duplicate" else generated
-    ReportCacheService.set_report(raw_key, report, filename)
+    ReportCacheService.set_report(raw_key, report, filename, session_key=session_key)
     return report
 
 
@@ -90,7 +142,8 @@ def sanitize_val(val: Any) -> Any:
     if isinstance(val, (np.integer, int)):
         return int(val)
     if isinstance(val, (np.floating, float)):
-        return round(float(val), 4)
+        numeric_val = float(val)
+        return None if math.isinf(numeric_val) else round(numeric_val, 4)
     return str(val)
 
 
@@ -132,7 +185,7 @@ def upload_dataset():
             "message": "No file selected."
         }), 400
 
-    filepath = save_uploaded_file(file)
+    filepath = save_uploaded_file(file, staging=True)
 
     if filepath is None:
         return jsonify({
@@ -140,21 +193,35 @@ def upload_dataset():
             "message": "Only CSV files are allowed."
         }), 400
 
-    clean_filename = os.path.basename(filepath)
-
-    # Clear old caches and load dataset into memory once upon upload
-    DatasetManager.clear_cache()
-    ReportCacheService.clear_cache()
-    _, err = DatasetManager.load_dataset(clean_filename)
-
+    clean_filename = secure_filename(file.filename)
+    dataframe, err = DatasetManager.parse_csv_file(filepath)
     if err:
+        os.remove(filepath)
         return jsonify({
             "success": False,
             "message": err
         }), 400
 
-    file_size_mb = f"{os.path.getsize(filepath) / (1024 * 1024):.2f} MB"
-    dataset_payload = DatasetManager.get_preview_payload(filesize_str=file_size_mb)
+    # Commit only a parseable upload. This keeps the previous active dataset
+    # and its reports usable when a replacement CSV is invalid.
+    destination = os.path.join(os.path.dirname(filepath), clean_filename)
+    try:
+        os.replace(filepath, destination)
+    except OSError:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        raise
+
+    session_key = get_session_key()
+    DatasetManager.clear_cache(session_key)
+    ReportCacheService.clear_cache(session_key)
+    DatasetManager.activate_dataframe(clean_filename, dataframe, session_key=session_key)
+
+    file_size_mb = f"{os.path.getsize(destination) / (1024 * 1024):.2f} MB"
+    dataset_payload = DatasetManager.get_preview_payload(
+        filesize_str=file_size_mb,
+        session_key=session_key,
+    )
 
     return jsonify({
         "success": True,
@@ -173,7 +240,7 @@ def get_overview_report():
     filename = request.args.get("filename")
     
     # Return cached report if available
-    cached = ReportCacheService.get_report("overview", filename)
+    cached = ReportCacheService.get_report("overview", filename, session_key=get_session_key())
     if cached is not None:
         return jsonify(cached), 200
 
@@ -207,7 +274,7 @@ def get_overview_report():
         "analyzed_at": "Just now"
     }
 
-    ReportCacheService.set_report("overview", response_payload, filename)
+    ReportCacheService.set_report("overview", response_payload, filename, session_key=get_session_key())
     return jsonify(response_payload), 200
 
 
@@ -216,7 +283,7 @@ def get_missing_report_api():
     filename = request.args.get("filename")
 
     # Return cached report if available
-    cached = ReportCacheService.get_report("missing", filename)
+    cached = ReportCacheService.get_report("missing", filename, session_key=get_session_key())
     if cached is not None:
         return jsonify(cached), 200
 
@@ -224,14 +291,43 @@ def get_missing_report_api():
     if err or df is None:
         return jsonify({"success": False, "message": err or "Failed to load dataset."}), 400
 
-    missing_df = generate_missing_report(df)
+    missing_df = get_cached_health_report("missing", filename, df, generate_missing_report)
 
     total_missing = to_int(missing_df["Missing Count"].sum()) if not missing_df.empty else 0
     pct_missing_rows = round(to_float(df.isnull().any(axis=1).sum() / len(df)) * 100, 2) if len(df) > 0 else 0.0
 
     overall_severity = get_highest_severity(missing_df) if not missing_df.empty else "No Issue"
-    business_impact = generate_business_impact("missing", overall_severity)
-    recommendation = generate_recommendation("missing", overall_severity)
+
+    # --- Gemini AI interpretation layer ---
+    # Build compact context from DataLens-calculated facts only (no raw CSV data)
+    affected_columns = [
+        {
+            "column": str(row["Column"]),
+            "missing_count": to_int(row["Missing Count"]),
+            "missing_pct": to_float(row["Missing Percentage"]),
+            "severity": str(row["Severity"])
+        }
+        for _, row in missing_df.iterrows()
+        if to_int(row["Missing Count"]) > 0
+    ] if not missing_df.empty else []
+
+    ai_context = {
+        "issue_type": "missing_values",
+        "total_records": len(df),
+        "total_missing_cells": total_missing,
+        "percentage_missing_rows": pct_missing_rows,
+        "overall_severity": overall_severity,
+        "affected_columns": affected_columns[:10]  # cap at 10 columns for prompt brevity
+    }
+    ai_impact, ai_rec = (
+        get_ai_business_impact_and_recommendation(ai_context)
+        if total_missing
+        else (None, None)
+    )
+
+    # Use AI result if valid; fall back to existing rule-based logic otherwise
+    business_impact = ai_impact if ai_impact else generate_business_impact("missing", overall_severity)
+    recommendation = ai_rec if ai_rec else generate_recommendation("missing", overall_severity)
 
     columns = []
     for _, row in missing_df.iterrows():
@@ -253,7 +349,7 @@ def get_missing_report_api():
         "columns": columns
     }
 
-    ReportCacheService.set_report("missing", response_payload, filename)
+    ReportCacheService.set_report("missing", response_payload, filename, session_key=get_session_key())
     return jsonify(response_payload), 200
 
 
@@ -262,7 +358,7 @@ def get_duplicate_report_api():
     filename = request.args.get("filename")
 
     # Return cached report if available
-    cached = ReportCacheService.get_report("duplicate", filename)
+    cached = ReportCacheService.get_report("duplicate", filename, session_key=get_session_key())
     if cached is not None:
         return jsonify(cached), 200
 
@@ -270,13 +366,32 @@ def get_duplicate_report_api():
     if err or df is None:
         return jsonify({"success": False, "message": err or "Failed to load dataset."}), 400
 
-    summary_df, duplicate_records = generate_duplicate_report(df)
+    summary_df = get_cached_health_report("duplicate", filename, df, generate_duplicate_report)
+    duplicate_records = get_duplicate_records(df)
 
     total_duplicates = to_int(summary_df["Duplicate Records"].iloc[0]) if not summary_df.empty else 0
     pct_duplicates = to_float(summary_df["Duplicate Percentage"].iloc[0]) if not summary_df.empty else 0.0
     overall_severity = str(summary_df["Severity"].iloc[0]) if not summary_df.empty else "No Issue"
-    business_impact = str(summary_df["Business Impact"].iloc[0]) if not summary_df.empty else "No duplicate issue."
-    recommendation = str(summary_df["Recommendation"].iloc[0]) if not summary_df.empty else "No action required."
+    # Preserve rule-based values as the mandatory fallback source
+    fallback_impact = str(summary_df["Business Impact"].iloc[0]) if not summary_df.empty else "No duplicate issue."
+    fallback_rec = str(summary_df["Recommendation"].iloc[0]) if not summary_df.empty else "No action required."
+
+    # --- Gemini AI interpretation layer ---
+    ai_context = {
+        "issue_type": "duplicates",
+        "total_records": to_int(summary_df["Total Records"].iloc[0]) if not summary_df.empty else len(df),
+        "duplicate_records": total_duplicates,
+        "duplicate_percentage": pct_duplicates,
+        "overall_severity": overall_severity
+    }
+    ai_impact, ai_rec = (
+        get_ai_business_impact_and_recommendation(ai_context)
+        if total_duplicates
+        else (None, None)
+    )
+
+    business_impact = ai_impact if ai_impact else fallback_impact
+    recommendation = ai_rec if ai_rec else fallback_rec
 
     samples = []
     if not duplicate_records.empty:
@@ -295,7 +410,7 @@ def get_duplicate_report_api():
         "duplicate_samples": samples
     }
 
-    ReportCacheService.set_report("duplicate", response_payload, filename)
+    ReportCacheService.set_report("duplicate", response_payload, filename, session_key=get_session_key())
     return jsonify(response_payload), 200
 
 
@@ -304,7 +419,7 @@ def get_datatype_report_api():
     filename = request.args.get("filename")
 
     # Return cached report if available
-    cached = ReportCacheService.get_report("datatype", filename)
+    cached = ReportCacheService.get_report("datatype", filename, session_key=get_session_key())
     if cached is not None:
         return jsonify(cached), 200
 
@@ -312,12 +427,39 @@ def get_datatype_report_api():
     if err or df is None:
         return jsonify({"success": False, "message": err or "Failed to load dataset."}), 400
 
-    datatype_df = generate_datatype_report(df)
+    datatype_df = get_cached_health_report("datatype", filename, df, generate_datatype_report)
 
     total_invalid = to_int(datatype_df["Invalid Values"].sum()) if not datatype_df.empty else 0
     overall_severity = get_highest_severity(datatype_df) if not datatype_df.empty else "No Issue"
-    business_impact = generate_business_impact("datatype", overall_severity)
-    recommendation = generate_recommendation("datatype", overall_severity)
+
+    # --- Gemini AI interpretation layer ---
+    datatype_issues_ctx = [
+        {
+            "column": str(row["Column"]),
+            "expected_type": str(row["Expected Datatype"]),
+            "detected_type": str(row["Detected Datatype"]),
+            "invalid_count": to_int(row["Invalid Values"]),
+            "severity": str(row["Severity"])
+        }
+        for _, row in datatype_df.iterrows()
+        if to_int(row["Invalid Values"]) > 0
+    ] if not datatype_df.empty else []
+
+    ai_context = {
+        "issue_type": "datatype",
+        "columns_analyzed": len(df.columns),
+        "total_invalid_values": total_invalid,
+        "overall_severity": overall_severity,
+        "issues": datatype_issues_ctx[:10]  # cap at 10 issues for prompt brevity
+    }
+    ai_impact, ai_rec = (
+        get_ai_business_impact_and_recommendation(ai_context)
+        if total_invalid
+        else (None, None)
+    )
+
+    business_impact = ai_impact if ai_impact else generate_business_impact("datatype", overall_severity)
+    recommendation = ai_rec if ai_rec else generate_recommendation("datatype", overall_severity)
 
     issues = []
     for _, row in datatype_df.iterrows():
@@ -340,16 +482,16 @@ def get_datatype_report_api():
         "issues": issues
     }
 
-    ReportCacheService.set_report("datatype", response_payload, filename)
+    ReportCacheService.set_report("datatype", response_payload, filename, session_key=get_session_key())
     return jsonify(response_payload), 200
 
 
 @api.route("/reports/outlier", methods=["GET"])
 def get_outlier_report_api():
-    filename = request.args.get("filename")
+    filename = request.args.get("filename") or request.args.get("file")
 
     # Return cached report if available
-    cached = ReportCacheService.get_report("outlier", filename)
+    cached = ReportCacheService.get_report("outlier", filename, session_key=get_session_key())
     if cached is not None:
         return jsonify(cached), 200
 
@@ -357,14 +499,13 @@ def get_outlier_report_api():
     if err or df is None:
         return jsonify({"success": False, "message": err or "Failed to load dataset."}), 400
 
-    outlier_df = generate_outlier_report(df)
+    outlier_df = get_cached_health_report("outlier", filename, df, generate_outlier_report)
 
     total_outliers = to_int(outlier_df["Outlier Count"].sum()) if not outlier_df.empty else 0
     overall_severity = get_highest_severity(outlier_df) if not outlier_df.empty else "No Issue"
+    num_cols = df.select_dtypes(include=["number"]).columns
     business_impact = generate_business_impact("outlier", overall_severity)
     recommendation = generate_recommendation("outlier", overall_severity)
-
-    num_cols = df.select_dtypes(include=["number"]).columns
 
     summary = []
     for _, row in outlier_df.iterrows():
@@ -390,7 +531,7 @@ def get_outlier_report_api():
         "summary": summary
     }
 
-    ReportCacheService.set_report("outlier", response_payload, filename)
+    ReportCacheService.set_report("outlier", response_payload, filename, session_key=get_session_key())
     return jsonify(response_payload), 200
 
 
@@ -399,7 +540,7 @@ def get_dashboard_report_api():
     filename = request.args.get("filename")
 
     # Return cached report if available
-    cached = ReportCacheService.get_report("dashboard", filename)
+    cached = ReportCacheService.get_report("dashboard", filename, session_key=get_session_key())
     if cached is not None:
         return jsonify(cached), 200
 
@@ -407,10 +548,10 @@ def get_dashboard_report_api():
     if err or df is None:
         return jsonify({"success": False, "message": err or "Failed to load dataset."}), 400
 
-    missing_df = generate_missing_report(df)
-    dup_df, _ = generate_duplicate_report(df)
-    dtype_df = generate_datatype_report(df)
-    outlier_df = generate_outlier_report(df)
+    missing_df = get_cached_health_report("missing", filename, df, generate_missing_report)
+    dup_df = get_cached_health_report("duplicate", filename, df, generate_duplicate_report)
+    dtype_df = get_cached_health_report("datatype", filename, df, generate_datatype_report)
+    outlier_df = get_cached_health_report("outlier", filename, df, generate_outlier_report)
 
     dash_report = generate_dashboard_report(missing_df, dup_df, dtype_df, outlier_df)
     dash_summary_df = dash_report["dashboard_summary"]
@@ -455,7 +596,7 @@ def get_dashboard_report_api():
         "quick_insights": quick_insights
     }
 
-    ReportCacheService.set_report("dashboard", response_payload, filename)
+    ReportCacheService.set_report("dashboard", response_payload, filename, session_key=get_session_key())
     return jsonify(response_payload), 200
 
 
@@ -468,7 +609,7 @@ def generate_pdf_report():
     filename = (
         request.args.get("filename")
         or (request.get_json(silent=True) or {}).get("filename")
-        or DatasetManager.get_active_filename()
+        or DatasetManager.get_active_filename(session_key=get_session_key())
     )
     if not filename:
         return jsonify({
@@ -476,7 +617,7 @@ def generate_pdf_report():
             "message": "No active dataset loaded. Please upload a dataset first."
         }), 400
 
-    pdf_buffer, err = ReportExportService.generate_pdf(filename)
+    pdf_buffer, err = ReportExportService.generate_pdf(filename, session_key=get_session_key())
     if err or pdf_buffer is None:
         return jsonify({
             "success": False,
@@ -501,7 +642,7 @@ def generate_excel_report():
     filename = (
         request.args.get("filename")
         or (request.get_json(silent=True) or {}).get("filename")
-        or DatasetManager.get_active_filename()
+        or DatasetManager.get_active_filename(session_key=get_session_key())
     )
     if not filename:
         return jsonify({
@@ -509,7 +650,7 @@ def generate_excel_report():
             "message": "No active dataset loaded. Please upload a dataset first."
         }), 400
 
-    excel_buffer, err = ReportExportService.generate_excel(filename)
+    excel_buffer, err = ReportExportService.generate_excel(filename, session_key=get_session_key())
     if err or excel_buffer is None:
         return jsonify({
             "success": False,

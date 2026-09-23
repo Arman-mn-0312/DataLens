@@ -74,6 +74,23 @@ flowchart LR
 
 ## ⚡ Quick Start (One-Command Launcher)
 
+### Authentication Configuration
+
+Copy `.env.example` to `.env` and provide the authentication settings before starting the application:
+
+```text
+MONGODB_URI=
+JWT_SECRET_KEY=
+FLASK_SECRET_KEY=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=http://127.0.0.1:5000/auth/google/callback
+FRONTEND_URL=http://localhost:3000
+FLASK_DEBUG=0
+```
+
+Keep `.env` out of source control and use long, randomly generated values for both secret keys. If a database credential has been exposed, rotate it before deployment.
+
 Launch the complete DataLens platform with a single command:
 
 ```bash

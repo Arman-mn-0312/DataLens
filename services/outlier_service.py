@@ -1,30 +1,47 @@
 import pandas as pd
+import numpy as np
+
+
+def _to_clean_series(column):
+    if isinstance(column, (int, float, str, np.number)):
+        s = pd.Series([column])
+    elif not isinstance(column, pd.Series):
+        s = pd.Series(column)
+    else:
+        s = column
+    s = pd.to_numeric(s, errors="coerce")
+    if isinstance(s, pd.Series):
+        return s.dropna()
+    return pd.Series(dtype=float)
+
 
 def calculate_iqr(column):
-    
-    column = column.dropna()
+    try:
+        column = _to_clean_series(column)
+        if len(column) == 0:
+            return {"Q1": 0.0, "Q3": 0.0, "IQR": 0.0}
 
-    q1 = column.quantile(0.25)
+        q1 = float(column.quantile(0.25))
+        q3 = float(column.quantile(0.75))
+        iqr = q3 - q1
 
-    q3 = column.quantile(0.75)
+        if pd.isna(q1) or pd.isna(q3) or pd.isna(iqr):
+            return {"Q1": 0.0, "Q3": 0.0, "IQR": 0.0}
 
-    iqr = q3 - q1
-
-    return {
-        "Q1": q1,
-        "Q3": q3,
-        "IQR": iqr
-    }
-
-
+        return {
+            "Q1": q1,
+            "Q3": q3,
+            "IQR": iqr
+        }
+    except Exception:
+        return {"Q1": 0.0, "Q3": 0.0, "IQR": 0.0}
 
 
 def calculate_outlier_bounds(column):
     iqr_result = calculate_iqr(column)
 
-    lower_bound = (iqr_result["Q1"] - 1.5 * iqr_result["IQR"])
-
-    upper_bound = (iqr_result["Q3"] + 1.5 * iqr_result["IQR"])
+    lower_bound = iqr_result["Q1"] - 1.5 * iqr_result["IQR"]
+    upper_bound = iqr_result["Q3"] + 1.5 * iqr_result["IQR"]
 
     return {
         "Lower Bound": lower_bound,
@@ -32,36 +49,40 @@ def calculate_outlier_bounds(column):
     }
 
 
-
 def detect_outliers(column):
-    column = column.dropna()
+    try:
+        column = _to_clean_series(column)
+        if len(column) == 0:
+            return pd.Series(dtype=float)
 
-    # Calculate lower and upper bounds
-    bounds = calculate_outlier_bounds(column)
+        bounds = calculate_outlier_bounds(column)
+        lower = bounds.get("Lower Bound")
+        upper = bounds.get("Upper Bound")
 
-    # Filter outlier values
-    outliers = column[
-        (column < bounds["Lower Bound"]) |
-        (column > bounds["Upper Bound"])
-    ]
+        if lower is None or upper is None or pd.isna(lower) or pd.isna(upper):
+            return pd.Series(dtype=float)
 
-    return outliers
-
+        outliers = column[
+            (column < lower) |
+            (column > upper)
+        ]
+        return outliers
+    except Exception:
+        return pd.Series(dtype=float)
 
 
 def calculate_outlier_percentage(column):
-    column = column.dropna()
+    try:
+        column = _to_clean_series(column)
+        if len(column) == 0:
+            return 0.0
 
-    # Handle empty column
-    if len(column) == 0:
+        outliers = detect_outliers(column)
+
+        outlier_percentage = (
+            len(outliers) / len(column)
+        ) * 100
+
+        return round(float(outlier_percentage), 2)
+    except Exception:
         return 0.0
-
-    # Detect outliers
-    outliers = detect_outliers(column)
-
-    # Calculate percentage
-    outlier_percentage = (
-        len(outliers) / len(column)
-    ) * 100
-
-    return round(outlier_percentage, 2)

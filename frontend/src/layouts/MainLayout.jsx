@@ -17,7 +17,7 @@ export const MainLayout = () => {
           <Outlet />
         </main>
       </div>
-      <Footer />
+      <Footer className="main-footer" />
     </div>
   );
 };

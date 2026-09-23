@@ -29,6 +29,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app import app
+from auth.security import create_access_token
 from engine.analysis_engine import analyze_dataset
 from reports.dashboard import generate_dashboard_report
 from reports.datatype import generate_datatype_report
@@ -43,6 +44,7 @@ from services.report_export_service import ReportExportService
 DATASET_DIR = Path(__file__).parent / "datasets"
 RESULT_DIR = Path(__file__).parent / "results"
 RUNS = 5
+API_HEADERS = {"Authorization": f"Bearer {create_access_token('benchmark-user')}"}
 
 
 class MemorySampler:
@@ -156,14 +158,14 @@ def benchmark_direct(path: Path, frame: pd.DataFrame, runs: int, safe_mode: bool
 
 
 def reset_state() -> None:
-    DatasetManager.clear_cache()
-    ReportCacheService.clear_cache()
+    DatasetManager.clear_cache(session_key="benchmark-user")
+    ReportCacheService.clear_cache(session_key="benchmark-user")
 
 
 def api_call(client: Any, endpoint: str, filename: str, method: str = "get") -> Any:
     if method == "post":
-        return client.post(endpoint, json={"filename": filename})
-    return client.get(endpoint, query_string={"filename": filename})
+        return client.post(endpoint, json={"filename": filename}, headers=API_HEADERS)
+    return client.get(endpoint, query_string={"filename": filename}, headers=API_HEADERS)
 
 
 def benchmark_api(path: Path, runs: int, safe_mode: bool = False) -> list[dict[str, Any]]:

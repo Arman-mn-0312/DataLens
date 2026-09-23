@@ -1,10 +1,15 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { DataLensProvider } from './context/DataLensContext';
+import { AuthProvider } from './auth/AuthContext';
+import { ProtectedRoute } from './auth/ProtectedRoute';
 import { MainLayout } from './layouts/MainLayout';
 import { LandingLayout } from './layouts/LandingLayout';
 
 import { Home } from './pages/Home';
+import { Login } from './pages/Login';
+import { Register } from './pages/Register';
+import { GoogleCallback } from './pages/GoogleCallback';
 import { Upload } from './pages/Upload';
 import { Overview } from './pages/Overview';
 import { MissingValues } from './pages/MissingValues';
@@ -22,31 +27,34 @@ import './styles/components.css';
 
 export const App = () => {
   return (
-    <DataLensProvider>
-      <BrowserRouter>
-        <Routes>
-          {/* Landing Route */}
-          <Route element={<LandingLayout />}>
-            <Route path="/" element={<Home />} />
-          </Route>
+    <AuthProvider>
+      <DataLensProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route element={<LandingLayout />}>
+              <Route path="/" element={<Home />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/auth/google/callback" element={<GoogleCallback />} />
+            </Route>
 
-          {/* Main Application Workspace Routes */}
-          <Route element={<MainLayout />}>
-            <Route path="/upload" element={<Upload />} />
-            <Route path="/overview" element={<Overview />} />
-            <Route path="/missing" element={<MissingValues />} />
-            <Route path="/duplicate" element={<Duplicates />} />
-            <Route path="/datatype" element={<DatatypeValidation />} />
-            <Route path="/outlier" element={<OutlierDetection />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/reports" element={<ReportsExport />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/documentation" element={<Documentation />} />
-            <Route path="*" element={<NotFound />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </DataLensProvider>
+            <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
+              <Route path="/upload" element={<Upload />} />
+              <Route path="/overview" element={<Overview />} />
+              <Route path="/missing" element={<MissingValues />} />
+              <Route path="/duplicate" element={<Duplicates />} />
+              <Route path="/datatype" element={<DatatypeValidation />} />
+              <Route path="/outlier" element={<OutlierDetection />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/reports" element={<ReportsExport />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/documentation" element={<Documentation />} />
+              <Route path="*" element={<NotFound />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </DataLensProvider>
+    </AuthProvider>
   );
 };
 

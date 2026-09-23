@@ -52,10 +52,12 @@ def test_export():
     # 3. Test Flask Endpoints
     print("Testing Flask API endpoints...")
     from app import app
+    from auth.security import create_access_token
     client = app.test_client()
+    headers = {"Authorization": f"Bearer {create_access_token('qa-report-export')}"}
 
     # Test POST /reports/generate/pdf
-    pdf_resp = client.post(f"/reports/generate/pdf?filename={sample_file}")
+    pdf_resp = client.post(f"/reports/generate/pdf?filename={sample_file}", headers=headers)
     print(f"POST /reports/generate/pdf response: {pdf_resp.status_code}, content-type: {pdf_resp.content_type}")
     assert pdf_resp.status_code == 200, f"Expected 200, got {pdf_resp.status_code}"
     assert "application/pdf" in pdf_resp.content_type
@@ -64,7 +66,7 @@ def test_export():
     print(f"  Content-Disposition: {pdf_resp.headers.get('Content-Disposition')}")
 
     # Test POST /reports/generate/excel
-    excel_resp = client.post(f"/reports/generate/excel?filename={sample_file}")
+    excel_resp = client.post(f"/reports/generate/excel?filename={sample_file}", headers=headers)
     print(f"POST /reports/generate/excel response: {excel_resp.status_code}, content-type: {excel_resp.content_type}")
     assert excel_resp.status_code == 200, f"Expected 200, got {excel_resp.status_code}"
     assert "spreadsheetml" in excel_resp.content_type
@@ -73,9 +75,9 @@ def test_export():
     print(f"  Content-Disposition: {excel_resp.headers.get('Content-Disposition')}")
 
     # Test Error Handling with non-existent dataset
-    err_resp = client.post("/reports/generate/pdf?filename=non_existent_file.csv")
+    err_resp = client.post("/reports/generate/pdf?filename=non_existent_file.csv", headers=headers)
     print(f"POST /reports/generate/pdf (invalid file) status: {err_resp.status_code}")
-    assert err_resp.status_code in [400, 500]
+    assert err_resp.status_code == 400, f"Invalid dataset should be a client error, got {err_resp.status_code}"
 
     print("All backend tests (Unit & API) passed successfully!")
     return True

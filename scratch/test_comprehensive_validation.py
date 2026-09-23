@@ -1,6 +1,7 @@
 import sys
 import os
 import io
+import uuid
 import pandas as pd
 import openpyxl
 from pathlib import Path
@@ -9,16 +10,41 @@ root_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(root_dir))
 
 from app import app
+from auth.security import create_access_token
 from services.dataset_manager import DatasetManager
 from services.report_cache_service import ReportCacheService
 from services.report_export_service import ReportExportService
+from services.datatype_service import TYPE_CHECKERS, classify_column
+
+
+def validate_datatype_compatibility():
+    samples = [
+        pd.Series(["", "NaN", "null", "0", "$1,203.50", "20%", "TRUE", "yes", "n", "2024-01-02", "13/01/2024", "not date", None], dtype=object),
+        pd.Series([True, False, True], dtype=bool),
+        pd.Series([1.0, None, -2.0]),
+        pd.Series(pd.to_datetime(["2024-01-01", None, "2024-02-01"])),
+    ]
+    for series in samples:
+        expected = []
+        for value in series.dropna():
+            detected = None
+            for type_name, checker in TYPE_CHECKERS.items():
+                if checker(value):
+                    detected = type_name
+                    break
+            expected.append(detected)
+        actual, _ = classify_column(series)
+        assert actual == expected, f"Datatype classification changed for {series.dtype}: {actual} != {expected}"
 
 def run_comprehensive_validation():
     print("==================================================")
+    validate_datatype_compatibility()
+    print("Datatype classifier matches prior behavior for mixed and native dtypes.")
     print("DATALENS COMPREHENSIVE END-TO-END VALIDATION")
     print("==================================================")
 
     client = app.test_client()
+    auth_headers = {"Authorization": f"Bearer {create_access_token('qa-comprehensive-validation')}"}
 
     # Step 1: Upload CSV
     sample_csv_path = os.path.join(root_dir, "data", "sample", "combined_dataset.csv")
@@ -26,7 +52,8 @@ def run_comprehensive_validation():
         upload_resp = client.post(
             "/upload",
             data={"file": (f, "combined_dataset.csv")},
-            content_type="multipart/form-data"
+            content_type="multipart/form-data",
+            headers=auth_headers,
         )
     print(f"1. Upload Response: {upload_resp.status_code}")
     assert upload_resp.status_code == 200, f"Upload failed: {upload_resp.data}"
@@ -37,14 +64,14 @@ def run_comprehensive_validation():
     # Step 2: Fetch all reports to simulate user viewing pages
     print("2. Simulating User Workflow (Loading all Report Pages)...")
     for rep in ["overview", "missing", "duplicate", "datatype", "outlier", "dashboard"]:
-        r = client.get(f"/reports/{rep}?filename=combined_dataset.csv")
+        r = client.get(f"/reports/{rep}?filename=combined_dataset.csv", headers=auth_headers)
         assert r.status_code == 200, f"Failed to fetch {rep}: {r.status_code}"
         payload = r.get_json()
-        print(f"   [OK] Fetched /reports/{rep} successfully (Cached: {ReportCacheService.has_report(rep, 'combined_dataset.csv')})")
+        print(f"   [OK] Fetched /reports/{rep} successfully (Cached: {ReportCacheService.has_report(rep, 'combined_dataset.csv', session_key='qa-comprehensive-validation')})")
 
     # Verify cache values
-    overview_data = ReportCacheService.get_report("overview", "combined_dataset.csv")
-    dashboard_data = ReportCacheService.get_report("dashboard", "combined_dataset.csv")
+    overview_data = ReportCacheService.get_report("overview", "combined_dataset.csv", session_key="qa-comprehensive-validation")
+    dashboard_data = ReportCacheService.get_report("dashboard", "combined_dataset.csv", session_key="qa-comprehensive-validation")
     assert overview_data is not None, "Expected overview report to be cached"
     assert dashboard_data is not None, "Expected dashboard report to be cached"
 
@@ -53,9 +80,22 @@ def run_comprehensive_validation():
     expected_status = summary.get("status")
     print(f"   Extracted Analysis Score: {expected_score}/100, Status: {expected_status}")
 
+    # A malformed replacement with the same name must leave the active report usable.
+    invalid_replacement = client.post(
+        "/upload",
+        data={"file": (io.BytesIO(b""), "combined_dataset.csv")},
+        content_type="multipart/form-data",
+        headers=auth_headers,
+    )
+    assert invalid_replacement.status_code == 400
+    preserved = client.get("/reports/overview?filename=combined_dataset.csv", headers=auth_headers)
+    assert preserved.status_code == 200
+    assert preserved.get_json()["total_rows"] == 12
+    print("   Invalid replacement rejected; the previous dataset remains available.")
+
     # Step 3: Test PDF Generation & Verification
     print("3. Testing PDF Generation Endpoint (POST /reports/generate/pdf)...")
-    pdf_resp = client.post("/reports/generate/pdf?filename=combined_dataset.csv")
+    pdf_resp = client.post("/reports/generate/pdf?filename=combined_dataset.csv", headers=auth_headers)
     assert pdf_resp.status_code == 200
     assert "application/pdf" in pdf_resp.content_type
     assert pdf_resp.data.startswith(b"%PDF")
@@ -65,7 +105,7 @@ def run_comprehensive_validation():
 
     # Step 4: Test Excel Generation & Sheet Verification
     print("4. Testing Excel Generation Endpoint (POST /reports/generate/excel)...")
-    excel_resp = client.post("/reports/generate/excel?filename=combined_dataset.csv")
+    excel_resp = client.post("/reports/generate/excel?filename=combined_dataset.csv", headers=auth_headers)
     assert excel_resp.status_code == 200
     assert "spreadsheetml" in excel_resp.content_type
     assert excel_resp.data.startswith(b"PK")
@@ -104,17 +144,63 @@ def run_comprehensive_validation():
 
     # Step 5: Test Export without pre-fetching (Cold cache on fresh upload)
     print("5. Testing Cold Export (Generating PDF/Excel without prior page loads)...")
-    ReportCacheService.clear_cache()
-    cold_pdf_resp = client.post("/reports/generate/pdf?filename=combined_dataset.csv")
+    ReportCacheService.clear_cache(session_key="qa-comprehensive-validation")
+    cold_pdf_resp = client.post("/reports/generate/pdf?filename=combined_dataset.csv", headers=auth_headers)
     assert cold_pdf_resp.status_code == 200
     assert cold_pdf_resp.data.startswith(b"%PDF")
     print(f"   [OK] Cold PDF Export succeeded: Size={len(cold_pdf_resp.data)} bytes")
 
     # Step 6: Test Error handling for invalid dataset
     print("6. Testing Error Handling...")
-    err_resp = client.post("/reports/generate/pdf?filename=non_existent_123.csv")
+    err_resp = client.post("/reports/generate/pdf?filename=non_existent_123.csv", headers=auth_headers)
     assert err_resp.status_code == 400, f"Expected 400, got {err_resp.status_code}"
     print(f"   [OK] Invalid file correctly rejected with status {err_resp.status_code}")
+
+    # Step 7: Verify that replacing the active file invalidates all report state
+    # and that every report is generated against the newly uploaded CSV.
+    replacement_filename = f"qa_reupload_{uuid.uuid4().hex}.csv"
+    try:
+        replacement = client.post(
+            "/upload",
+            data={"file": (io.BytesIO(b"item,score\nA,1\nB,100\nB,100\n"), replacement_filename)},
+            content_type="multipart/form-data",
+            headers=auth_headers,
+        )
+        assert replacement.status_code == 200, replacement.get_json()
+        replacement_overview = None
+        for rep in ["overview", "missing", "duplicate", "datatype", "outlier", "dashboard"]:
+            response = client.get(
+                f"/reports/{rep}?filename={replacement_filename}",
+                headers=auth_headers,
+            )
+            assert response.status_code == 200, f"Reupload report {rep} failed: {response.get_data(as_text=True)}"
+            if rep == "overview":
+                replacement_overview = response.get_json()
+        assert replacement_overview["dataset_name"] == replacement_filename
+        assert replacement_overview["total_rows"] == 3
+
+        same_name_replacement = client.post(
+            "/upload",
+            data={"file": (io.BytesIO(b"item,score\nC,7\nD,8\n"), replacement_filename)},
+            content_type="multipart/form-data",
+            headers=auth_headers,
+        )
+        assert same_name_replacement.status_code == 200, same_name_replacement.get_json()
+        for rep in ["overview", "missing", "duplicate", "datatype", "outlier", "dashboard"]:
+            response = client.get(
+                f"/reports/{rep}?filename={replacement_filename}",
+                headers=auth_headers,
+            )
+            assert response.status_code == 200, f"Same-name report {rep} failed: {response.get_data(as_text=True)}"
+            if rep == "overview":
+                assert response.get_json()["total_rows"] == 2
+        print("7. Reupload check passed for new and same-name CSVs; every report used the latest data.")
+    finally:
+        DatasetManager.clear_cache(session_key="qa-comprehensive-validation")
+        ReportCacheService.clear_cache(session_key="qa-comprehensive-validation")
+        replacement_path = root_dir / "uploads" / replacement_filename
+        if replacement_path.exists():
+            replacement_path.unlink()
 
     print("==================================================")
     print("ALL VERIFICATIONS COMPLETED WITH 100% SUCCESS!")

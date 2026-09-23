@@ -1,9 +1,9 @@
 import React from 'react';
 import { Layers } from 'lucide-react';
 
-export const Footer = () => {
+export const Footer = ({ className = '' }) => {
   return (
-    <footer style={{
+    <footer className={`app-footer ${className}`} style={{
       borderTop: '1px solid var(--border-color)',
       backgroundColor: 'var(--bg-surface)',
       padding: '1.75rem 2rem',
@@ -26,7 +26,7 @@ export const Footer = () => {
         </div>
 
         <div>
-          Enterprise Data Quality Engine • Standalone React Architecture
+          Enterprise Data Quality Engine
         </div>
 
         <div>
