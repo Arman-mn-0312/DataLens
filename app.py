@@ -15,6 +15,7 @@ load_dotenv()
 
 from routes.api import api
 from routes.auth import auth_bp
+from services.upload_cleanup_service import start_upload_cleanup_worker
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
@@ -43,6 +44,8 @@ if not logger.handlers:
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(log_formatter)
     logger.addHandler(console_handler)
+
+start_upload_cleanup_worker()
 
 app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY") or os.getenv("JWT_SECRET_KEY", "development-secret")
 app.config["SESSION_COOKIE_HTTPONLY"] = True

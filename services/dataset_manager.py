@@ -2,7 +2,7 @@ import os
 from threading import RLock
 import pandas as pd
 from werkzeug.utils import secure_filename
-from config.upload_config import UPLOAD_FOLDER
+from services.upload_storage import get_user_upload_path
 
 class DatasetManager:
     _sessions = {}
@@ -78,7 +78,7 @@ class DatasetManager:
             if session["active_filename"] == clean_filename and session["active_df"] is not None:
                 return session["active_df"], None
 
-            filepath = os.path.join(UPLOAD_FOLDER, clean_filename)
+            filepath = get_user_upload_path(clean_filename, session_key)
             if not os.path.exists(filepath):
                 return None, f"File '{filename}' not found."
 

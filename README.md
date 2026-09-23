@@ -31,6 +31,8 @@ These raw numbers leave non-technical stakeholders asking:
 
 DataLens is a full-stack data quality investigation solution designed for data analysts, analytics engineers, and decision-makers. It turns unorganized raw CSV data into clear, executive-ready quality reports with interactive visualizations and automated risk assessments.
 
+Uploaded CSV files are stored as temporary runtime data under the Git-ignored `instance/datalens_data/uploads` directory, isolated by authenticated user. The **Remove File** action deletes the server copy. Files are automatically deleted after 24 hours without report activity; set `DATALENS_UPLOAD_TTL_HOURS` to change this period. Set `DATALENS_DATA_DIR` to a writable mounted volume when deployment storage must persist across restarts. Cleanup runs in the background every 15 minutes by default (`DATALENS_UPLOAD_CLEANUP_INTERVAL_SECONDS`).
+
 ```mermaid
 flowchart LR
     A[Raw CSV Upload] --> B[React Web UI]

@@ -73,6 +73,7 @@ dist/
 # ==========================
 
 output/logs/
+instance/datalens_data/
 
 
 

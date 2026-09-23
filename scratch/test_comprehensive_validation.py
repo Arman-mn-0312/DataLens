@@ -14,6 +14,7 @@ from auth.security import create_access_token
 from services.dataset_manager import DatasetManager
 from services.report_cache_service import ReportCacheService
 from services.report_export_service import ReportExportService
+from services.upload_storage import get_user_upload_path
 from services.datatype_service import TYPE_CHECKERS, classify_column
 
 
@@ -195,12 +196,20 @@ def run_comprehensive_validation():
             if rep == "overview":
                 assert response.get_json()["total_rows"] == 2
         print("7. Reupload check passed for new and same-name CSVs; every report used the latest data.")
+        deleted = client.delete(
+            f"/upload?filename={replacement_filename}",
+            headers=auth_headers,
+        )
+        assert deleted.status_code == 200, deleted.get_json()
+        assert not os.path.exists(get_user_upload_path(replacement_filename, "qa-comprehensive-validation"))
+        print("8. Explicit delete removes the server-side upload.")
     finally:
         DatasetManager.clear_cache(session_key="qa-comprehensive-validation")
         ReportCacheService.clear_cache(session_key="qa-comprehensive-validation")
-        replacement_path = root_dir / "uploads" / replacement_filename
-        if replacement_path.exists():
-            replacement_path.unlink()
+        for uploaded_name in ("combined_dataset.csv", replacement_filename):
+            uploaded_path = get_user_upload_path(uploaded_name, "qa-comprehensive-validation")
+            if uploaded_path and os.path.exists(uploaded_path):
+                os.remove(uploaded_path)
 
     print("==================================================")
     print("ALL VERIFICATIONS COMPLETED WITH 100% SUCCESS!")

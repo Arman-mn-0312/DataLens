@@ -3,9 +3,9 @@ import tempfile
 from werkzeug.utils import secure_filename
 
 from config.upload_config import (
-    UPLOAD_FOLDER,
     ALLOWED_EXTENSIONS
 )
+from services.upload_storage import get_user_upload_dir
 
 
 def allowed_file(filename):
@@ -15,19 +15,19 @@ def allowed_file(filename):
     )
 
 
-def save_uploaded_file(file, staging=False):
+def save_uploaded_file(file, staging=False, session_key=None):
 
     if not allowed_file(file.filename):
         return None
 
     filename = secure_filename(file.filename)
 
-    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    user_upload_dir = get_user_upload_dir(session_key)
     if staging:
-        descriptor, filepath = tempfile.mkstemp(prefix=".datalens-upload-", suffix=".tmp", dir=UPLOAD_FOLDER)
+        descriptor, filepath = tempfile.mkstemp(prefix=".datalens-upload-", suffix=".tmp", dir=user_upload_dir)
         os.close(descriptor)
     else:
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        filepath = os.path.join(user_upload_dir, filename)
 
     try:
         file.save(filepath)

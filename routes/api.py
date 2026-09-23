@@ -12,6 +12,8 @@ from auth.security import (
     get_current_user_from_request,
 )
 from services.upload_service import save_uploaded_file
+from services.upload_storage import get_user_upload_path
+from services.upload_cleanup_service import touch_upload
 from services.dataset_manager import DatasetManager
 from services.report_cache_service import ReportCacheService
 from services.report_export_service import ReportExportService
@@ -48,6 +50,8 @@ def require_data_auth_for_api_routes():
         token = get_auth_token_from_request()
         if not token or decode_access_token(token) is None:
             return jsonify({"success": False, "message": "Authentication required."}), 401
+        if request.path.startswith("/reports"):
+            touch_upload(request.args.get("filename"), get_session_key())
 
     return None
 
@@ -185,7 +189,8 @@ def upload_dataset():
             "message": "No file selected."
         }), 400
 
-    filepath = save_uploaded_file(file, staging=True)
+    session_key = get_session_key()
+    filepath = save_uploaded_file(file, staging=True, session_key=session_key)
 
     if filepath is None:
         return jsonify({
@@ -204,7 +209,7 @@ def upload_dataset():
 
     # Commit only a parseable upload. This keeps the previous active dataset
     # and its reports usable when a replacement CSV is invalid.
-    destination = os.path.join(os.path.dirname(filepath), clean_filename)
+    destination = get_user_upload_path(clean_filename, session_key)
     try:
         os.replace(filepath, destination)
     except OSError:
@@ -212,7 +217,6 @@ def upload_dataset():
             os.remove(filepath)
         raise
 
-    session_key = get_session_key()
     DatasetManager.clear_cache(session_key)
     ReportCacheService.clear_cache(session_key)
     DatasetManager.activate_dataframe(clean_filename, dataframe, session_key=session_key)
@@ -229,6 +233,28 @@ def upload_dataset():
         "filename": clean_filename,
         "dataset": dataset_payload
     }), 200
+
+
+@api.route("/upload", methods=["DELETE"])
+def delete_dataset():
+    filename = request.args.get("filename")
+    if not filename:
+        return jsonify({"success": False, "message": "Filename parameter is required."}), 400
+
+    session_key = get_session_key()
+    path = get_user_upload_path(filename, session_key)
+    if not path or not os.path.isfile(path):
+        return jsonify({"success": False, "message": "Dataset file was not found."}), 404
+
+    # Drop in-memory data and report results before removing the user's file.
+    DatasetManager.clear_cache(session_key)
+    ReportCacheService.clear_cache(session_key)
+    try:
+        os.remove(path)
+    except OSError:
+        return jsonify({"success": False, "message": "Could not remove the dataset file."}), 500
+
+    return jsonify({"success": True, "message": "Dataset file removed."}), 200
 
 
 # ==========================

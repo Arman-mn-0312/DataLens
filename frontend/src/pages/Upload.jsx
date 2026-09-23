@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { uploadDataset as uploadDatasetAPI } from "../services/uploadService";
+import { uploadDataset as uploadDatasetAPI, deleteUploadedDataset } from "../services/uploadService";
 import { useDataLens } from '../context/DataLensContext';
 import { PageHeader } from '../components/common/PageHeader';
 import { CustomTable } from '../components/common/CustomTable';
@@ -50,6 +50,16 @@ export const Upload = () => {
   const handleStartAnalysis = async () => {
     await analyzeDataset();
     navigate('/overview');
+  };
+
+  const handleRemoveDataset = async () => {
+    try {
+      if (dataset?.filename) await deleteUploadedDataset(dataset.filename);
+      resetDataset();
+    } catch (error) {
+      console.error("Dataset removal error:", error);
+      alert(error.message || "Could not remove the uploaded dataset.");
+    }
   };
 
   const columns = dataset?.columns?.map(col => ({
@@ -153,7 +163,7 @@ export const Upload = () => {
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <button 
-                  onClick={resetDataset} 
+                  onClick={handleRemoveDataset} 
                   className="btn btn-secondary"
                   style={{ color: 'var(--danger)', borderColor: 'var(--danger-border)' }}
                 >
