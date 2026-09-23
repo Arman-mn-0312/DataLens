@@ -11,14 +11,29 @@ class DatasetManager:
 
     @staticmethod
     def parse_csv_file(filepath):
-        """Parse a CSV using the primary and compatibility pandas engines."""
+        """Keep the existing CSV parser entrypoint for callers and tests."""
+        return DatasetManager.parse_dataset_file(filepath, filepath)
+
+    @staticmethod
+    def parse_dataset_file(filepath, filename=None):
+        """Parse supported tabular formats into the shared analysis DataFrame."""
+        extension = os.path.splitext(filename or filepath)[1].lower()
         try:
-            try:
-                return pd.read_csv(filepath), None
-            except Exception:
-                return pd.read_csv(filepath, engine="python"), None
+            if extension == ".xlsx":
+                return pd.read_excel(filepath, engine="openpyxl"), None
+            if extension == ".json":
+                try:
+                    return pd.read_json(filepath), None
+                except ValueError:
+                    return pd.read_json(filepath, lines=True), None
+            if extension == ".csv" or not extension:
+                try:
+                    return pd.read_csv(filepath), None
+                except Exception:
+                    return pd.read_csv(filepath, engine="python"), None
+            return None, "Unsupported file format. Please upload a CSV, XLSX, or JSON file."
         except Exception as exc:
-            return None, f"Failed to parse CSV file: {str(exc)}"
+            return None, f"Failed to parse {extension.lstrip('.').upper() or 'data'} file: {str(exc)}"
 
     @staticmethod
     def _update_session(session, filename, df):
@@ -82,7 +97,7 @@ class DatasetManager:
             if not os.path.exists(filepath):
                 return None, f"File '{filename}' not found."
 
-            df, err = cls.parse_csv_file(filepath)
+            df, err = cls.parse_dataset_file(filepath, clean_filename)
             if err:
                 cls.clear_cache(session_key)
                 return None, err

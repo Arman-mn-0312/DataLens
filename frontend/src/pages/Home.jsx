@@ -198,7 +198,7 @@ export const Home = () => {
             </div>
             <h2 className="section-title">How DataLens Works</h2>
             <p className="section-subtitle">
-              From raw un-audited CSV files to automated executive-level remediation advice in seconds.
+              From raw, unaudited data files to automated executive-level remediation advice in seconds.
             </p>
           </div>
 
@@ -206,7 +206,7 @@ export const Home = () => {
             <div className="works-step-card">
               <div className="step-num">01</div>
               <h3>Upload Dataset</h3>
-              <p>Drag and drop your raw tabular CSV or data export file. No configuration or pre-formatting needed.</p>
+              <p>Drag and drop a CSV, XLSX workbook, JSON file, or tabular data export. No pre-formatting needed.</p>
             </div>
 
             <div className="works-step-card">

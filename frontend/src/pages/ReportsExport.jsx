@@ -28,7 +28,7 @@ export const ReportsExport = () => {
     return (
       <EmptyState 
         title="No Dataset Uploaded"
-        message="Please upload a CSV dataset to generate downloadable reports."
+        message="Please upload a CSV, XLSX, or JSON dataset to generate downloadable reports."
         action={
           <Link to="/upload" className="btn btn-primary">
             Go to Upload Page

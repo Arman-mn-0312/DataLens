@@ -76,7 +76,7 @@ export const Upload = () => {
     <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
       <PageHeader 
         title="Dataset Upload & Inspection"
-        subtitle="Upload a CSV dataset to inspect raw records before executing the DataLens investigation pipeline."
+        subtitle="Upload a CSV, Excel workbook, or JSON dataset to inspect records before analysis."
         icon={UploadCloud}
         badge={
           <span style={{ 
@@ -123,14 +123,14 @@ export const Upload = () => {
             <UploadCloud size={32} />
           </div>
 
-          <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>Drag & Drop your CSV dataset here</h3>
+          <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>Drag & Drop your data file here</h3>
           <p style={{ maxWidth: '400px', margin: '0 auto 1.5rem auto' }}>
-            Supports standard CSV files containing numerical, categorical, and temporal attributes.
+            Supports CSV, XLSX (first worksheet), and tabular JSON files.
           </p>
 
           <label className="btn btn-primary" style={{ cursor: 'pointer', display: 'inline-flex', opacity: isUploading ? 0.7 : 1 }}>
             {isUploading ? "Uploading file..." : "Browse File"}
-            <input type="file" accept=".csv" onChange={handleFileSelect} disabled={isUploading} style={{ display: 'none' }} />
+            <input type="file" accept=".csv,.xlsx,.json,application/json" onChange={handleFileSelect} disabled={isUploading} style={{ display: 'none' }} />
           </label>
         </div>
       ) : (

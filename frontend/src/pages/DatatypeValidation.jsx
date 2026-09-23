@@ -23,7 +23,7 @@ export const DatatypeValidation = () => {
     return (
       <EmptyState 
         title="No Dataset Uploaded" 
-        message="Please upload a CSV dataset to view the Datatype Validation Report." 
+        message="Please upload a CSV, XLSX, or JSON dataset to view the Datatype Validation Report." 
         action={
           <Link to="/upload" className="btn btn-primary">
             Go to Upload Page

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Database } from 'lucide-react';
 
-export const EmptyState = ({ title = "No Dataset Loaded", message = "Please upload a CSV dataset to execute the DataLens investigation workflow.", action }) => {
+export const EmptyState = ({ title = "No Dataset Loaded", message = "Please upload a CSV, XLSX, or JSON dataset to execute the DataLens investigation workflow.", action }) => {
   return (
     <div className="card" style={{ textAlign: 'center', padding: '3.5rem 2rem', margin: '2rem 0' }}>
       <div style={{

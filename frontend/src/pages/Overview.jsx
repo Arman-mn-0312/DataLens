@@ -21,7 +21,7 @@ export const Overview = () => {
     return (
       <EmptyState 
         title="No Dataset Uploaded"
-        message="Please upload your CSV file to view the Overview report."
+        message="Please upload a CSV, XLSX, or JSON file to view the Overview report."
         action={
           <Link to="/upload" className="btn btn-primary">
             Go to Upload Page

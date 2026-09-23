@@ -1,6 +1,7 @@
 import sys
 import os
 import io
+import json
 import uuid
 import pandas as pd
 import openpyxl
@@ -203,6 +204,38 @@ def run_comprehensive_validation():
         assert deleted.status_code == 200, deleted.get_json()
         assert not os.path.exists(get_user_upload_path(replacement_filename, "qa-comprehensive-validation"))
         print("8. Explicit delete removes the server-side upload.")
+
+        # Excel and JSON imports should enter the exact same analysis flow.
+        tabular_rows = [{"item": "A", "score": 1}, {"item": "B", "score": 100}]
+        workbook = io.BytesIO()
+        pd.DataFrame(tabular_rows).to_excel(workbook, index=False)
+        format_payloads = [
+            (f"qa_format_{uuid.uuid4().hex}.xlsx", workbook.getvalue()),
+            (f"qa_format_{uuid.uuid4().hex}.json", json.dumps(tabular_rows).encode("utf-8")),
+        ]
+        try:
+            for format_name, format_bytes in format_payloads:
+                imported = client.post(
+                    "/upload",
+                    data={"file": (io.BytesIO(format_bytes), format_name)},
+                    content_type="multipart/form-data",
+                    headers=auth_headers,
+                )
+                assert imported.status_code == 200, imported.get_json()
+                for report_name in ["overview", "missing", "duplicate", "datatype", "outlier", "dashboard"]:
+                    report_response = client.get(
+                        f"/reports/{report_name}?filename={format_name}",
+                        headers=auth_headers,
+                    )
+                    assert report_response.status_code == 200, report_response.get_data(as_text=True)
+                    if report_name == "overview":
+                        assert report_response.get_json()["total_rows"] == 2
+                print(f"9. {format_name.rsplit('.', 1)[-1].upper()} upload and all report operations passed.")
+        finally:
+            for format_name, _ in format_payloads:
+                format_path = get_user_upload_path(format_name, "qa-comprehensive-validation")
+                if os.path.exists(format_path):
+                    os.remove(format_path)
     finally:
         DatasetManager.clear_cache(session_key="qa-comprehensive-validation")
         ReportCacheService.clear_cache(session_key="qa-comprehensive-validation")

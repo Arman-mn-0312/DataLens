@@ -23,7 +23,7 @@ export const MissingValues = () => {
     return (
       <EmptyState 
         title="No Dataset Uploaded" 
-        message="Please upload a CSV dataset to view the Missing Values Report." 
+        message="Please upload a CSV, XLSX, or JSON dataset to view the Missing Values Report." 
         action={
           <Link to="/upload" className="btn btn-primary">
             Go to Upload Page

@@ -195,11 +195,11 @@ def upload_dataset():
     if filepath is None:
         return jsonify({
             "success": False,
-            "message": "Only CSV files are allowed."
+            "message": "Unsupported file type. Please upload a CSV, XLSX, or JSON file."
         }), 400
 
     clean_filename = secure_filename(file.filename)
-    dataframe, err = DatasetManager.parse_csv_file(filepath)
+    dataframe, err = DatasetManager.parse_dataset_file(filepath, file.filename)
     if err:
         os.remove(filepath)
         return jsonify({

@@ -23,7 +23,7 @@ export const Dashboard = () => {
     return (
       <EmptyState 
         title="No Dataset Uploaded" 
-        message="Please upload a CSV dataset to view the Executive Master Dashboard." 
+        message="Please upload a CSV, XLSX, or JSON dataset to view the Executive Master Dashboard." 
         action={
           <Link to="/upload" className="btn btn-primary">
             Go to Upload Page

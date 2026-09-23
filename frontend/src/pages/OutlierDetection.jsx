@@ -23,7 +23,7 @@ export const OutlierDetection = () => {
     return (
       <EmptyState 
         title="No Dataset Uploaded" 
-        message="Please upload a CSV dataset to view the Outlier Detection Report." 
+        message="Please upload a CSV, XLSX, or JSON dataset to view the Outlier Detection Report." 
         action={
           <Link to="/upload" className="btn btn-primary">
             Go to Upload Page
