@@ -137,7 +137,7 @@ export const Upload = () => {
         <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           {/* Enhanced Dataset Preview Card */}
           <div className="card" style={{ padding: '1.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+            <div className="upload-preview-heading" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', gap: '1rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                 <div style={{
                   width: '44px',
@@ -161,7 +161,7 @@ export const Upload = () => {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div className="upload-preview-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <button 
                   onClick={handleRemoveDataset} 
                   className="btn btn-secondary"

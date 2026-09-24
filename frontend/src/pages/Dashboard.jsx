@@ -76,7 +76,7 @@ export const Dashboard = () => {
       </div>
 
       {/* Grid: Health Score Card + Summary Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '1.25rem', marginBottom: '1.5rem' }}>
+      <div className="dashboard-score-grid" style={{ display: 'grid', gap: '1.25rem', marginBottom: '1.5rem' }}>
         <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <h4 style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
             Executive Quality Score
